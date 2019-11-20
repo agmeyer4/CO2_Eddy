@@ -8,5 +8,7 @@ dependencies:
   - matplotlib
   - pymysql
   - pandas
+  - rpy2
+  - Ipython
 
 prefix: C:\Users\agmey\Anaconda3\envs\CO2_Eddy
