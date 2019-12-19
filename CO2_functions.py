@@ -851,6 +851,8 @@ def get_lag_groups(actual_spike_df,column):
             end_ix += 1
             st_ix = end_ix
     df_list[grp] = pd.DataFrame(spike_df.loc[st_ix:end_ix])
+    
+    print(df_list)
 
     ETs = []
     ave_lags = []
@@ -880,11 +882,11 @@ def df_correction_lag_slope(final_lags,df_to_correct):
     df_corr_list[0]['Corrected_DT'] = df_corr_list[0]['Corrected_ET'].apply(lambda x: datetime.fromtimestamp(x))
 
     for i in range(1,len(final_lags)-1):
-        df_corr_list[i] = df_to_correct.where((df_to_correct['EPOCH_TIME'] >= final_lags.loc[i,'mid_ET']) & (df_to_correct['EPOCH_TIME'] <= final_lags.loc[i+1,'mid_ET'])).dropna()
+        df_corr_list[i] = df_to_correct.where((df_to_correct['EPOCH_TIME'] >= final_lags.loc[i,'mid_ET']) & (df_to_correct['EPOCH_TIME'] <= final_lags.loc[i+1,'mid_ET'])).dropna(how='all')
         df_corr_list[i]['Corrected_ET'] = df_corr_list[i]['EPOCH_TIME'].apply(row_correction,args=(final_lags,i))
         df_corr_list[i]['Corrected_DT'] = df_corr_list[i]['Corrected_ET'].apply(lambda x: datetime.fromtimestamp(x))
 
-    corrected_df = pd.concat(df_corr_list)
+    corrected_df = pd.concat(df_corr_list).drop_duplicates()
     
     return corrected_df
 
@@ -907,6 +909,58 @@ def drift_correct(dict_of_dfs):
         lags = get_lag_groups(spikes,key)
         data[key] = df_correction_lag_slope(lags,data[key])
     return data
+#==============================================================================================================#
+def remove_spikes(spike_df,data):
+    import pandas as pd
+    
+    for key in data:
+        if key == 'Multiplexer_Weather':
+            key = 'Multiplexer_CO2_1'
+        df = get_grouped_spike_list(spike_df,key)
+        starts = []
+        ends = [] 
+        for i in range(0,len(df)):
+            starts.append(df[i]['Actual_ET'].iloc[0])
+            ends.append(df[i]['Actual_ET'].iloc[-1])
+            
+        df = pd.DataFrame({'Starts':starts,'Ends':ends})
+        beg = data[key]['Corrected_ET'].iloc[0]
+        end = data[key]['Corrected_ET'].iloc[-1]
+        
+        df = df.loc[(df['Starts']>beg)&(df['Ends']<end)]
+        
+        new_df = data[key]
+        for i in range(0,len(df)):
+            new_df = new_df.loc[(new_df['Corrected_ET']<(df['Starts'].iloc[i]-60))|(new_df['Corrected_ET']>(df['Ends'].iloc[i]+60))]
+        
+        data[key]=new_df
+        
+    return data
+#==============================================================================================================#
+def get_grouped_spike_list(spike_df,key):
+    import pandas as pd
+    
+    spike_df = spike_df[['Actual_DT','Actual_ET',key]].dropna()
+    spike_df['lags'] = spike_df.apply(lambda row: row['Actual_ET']-row[key],axis=1)
+    spike_df['diff'] = spike_df['Actual_ET'] - spike_df['Actual_ET'].shift(1)
+    spike_df.reset_index(drop=True,inplace=True)
+    
+    grp = int(0)
+    df_list = {}
+    st_ix = 0 
+    end_ix = 0
+    for i in range(1,len(spike_df)):
+        if spike_df.loc[i,'diff'] < 1000:
+            end_ix += 1
+        else:
+            df_list[grp] = pd.DataFrame(spike_df.loc[st_ix:end_ix])
+            grp+=1
+            end_ix += 1
+            st_ix = end_ix
+    df_list[grp] = pd.DataFrame(spike_df.loc[st_ix:end_ix])
+    
+        
+    return df_list
 
 #==============================================================================================================#
     
@@ -1016,3 +1070,15 @@ def pollution_rose(df,pollutant):
     IPython.display.display(IPython.display.Image(data=img.getvalue(), format='png', embed=True))
     
     
+#==============================================================================================================#
+def full_download_process():
+    import pandas as pd
+    date1,date2 = get_date_range()
+    data = get_sql_data("Aug2019_LI_8100_Vent",\
+                  "Aug2019_Multiplexer","Aug2019_Vent_Anem_Temp",\
+                  "Aug2019_Picarro",date1,date2,'all','split')
+    data = drift_correct(data)
+    for key in data:
+        data[key].reset_index(drop=True,inplace=True)
+    data['Picarro_ANEM'] = wind_add(data['Picarro_ANEM'],1)
+    data = remove_spikes(pd.read_pickle('Spike_ETs.pkl'),data)
