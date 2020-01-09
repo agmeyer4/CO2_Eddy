@@ -5,8 +5,8 @@ Spyder Editor
 This is a temporary script file.
 """
 #=========================================================================================================#
-#Ask the user for the date range between which data will be pulled from SQL
 def get_date_range():
+    #Ask the user for a date range and return the results
     date1=input("Enter Start Date YYYY-mm-DD: ")
     date2=input("Enter End Date YYYY-mm-DD: ")
     return date1,date2
@@ -14,6 +14,12 @@ def get_date_range():
 #=========================================================================================================#
     
 def sql_connect():
+    ######################################################################
+    # Function to get exclusively "Spike Necessary" LI_8100 Data         # 
+    # from SQL. Input the SQL Tablename, and date range between which    #
+    # data will be fetched. For one day's worth of data, enter the same  #
+    # Date.                                                              #
+    ######################################################################
     import pymysql.cursors
     
     #Connect to SQL database with username and pw
@@ -33,10 +39,13 @@ def sql_connect():
 
 def get_LI_data(tablename,date1,date2):
     ######################################################################
-    # Function to get exclusively "Spike Necessary" LI_8100 Data         # 
+    # Function to get necessary LI_8100 Data                             # 
     # from SQL. Input the SQL Tablename, and date range between which    #
     # data will be fetched. For one day's worth of data, enter the same  #
     # Date.                                                              #
+    # Inputs:   tablename = name of SQL table to query, input as string  #
+    #           date1 = start data for query, as string                  #
+    #           date2 = end date for query, as string                    #
     ######################################################################
     import pandas as pd
 
@@ -47,7 +56,7 @@ def get_LI_data(tablename,date1,date2):
                         order by EPOCH_TIME asc;".format(tablename,date1,date2)) #SQL statement
     data = mycursor.fetchall() #fetch the data
     LI_vent = pd.DataFrame(list(data)) #convert imported data to dataframe
-    LI_vent.columns = ['Local_DT','EPOCH_TIME','CO2'] #name columns
+    LI_vent.columns = ['Local_DT','EPOCH_TIME','LI_CO2'] #name columns
     cols = LI_vent.columns.drop('Local_DT') #get all column names beside date column
     LI_vent[cols]=LI_vent[cols].apply(pd.to_numeric,errors='coerce') #change all but date to floats
     
@@ -83,7 +92,7 @@ def get_multiplexer_data(tablename,date1,date2,split_or_concat,i):
                         order by EPOCH_TIME asc;".format(tablename,date1,date2)) #SQL query
             data = mycursor.fetchall() #fetch the data
             Multiplexer = pd.DataFrame(list(data)) #convert imported data into a dataframe
-            Multiplexer.columns = ['Local_DT','EPOCH_TIME','Rotations','Wind_Velocity','Wind_Direction','Temp','Location'] #name columns
+            Multiplexer.columns = ['Local_DT','EPOCH_TIME','Rotations','Wind_Velocity','Wind_Direction','Temp','Multi_loc'] #name columns
     elif split_or_concat == 'concat':
         mycursor.execute("SELECT *\
                     FROM {}\
@@ -91,7 +100,7 @@ def get_multiplexer_data(tablename,date1,date2,split_or_concat,i):
                     order by EPOCH_TIME asc;".format(tablename,date1,date2)) #SQL query
         data = mycursor.fetchall() #fetch the data
         Multiplexer = pd.DataFrame(list(data)) #convert imported data into a dataframe
-        Multiplexer.columns = ['Local_DT','EPOCH_TIME','CO2_1','CO2_2','CO2_3','Rotations','Wind_Velocity','Wind_Direction','Temp','Location'] #name columns
+        Multiplexer.columns = ['Local_DT','EPOCH_TIME','CO2_1','CO2_2','CO2_3','Rotations','Wind_Velocity','Wind_Direction','Temp','Multi_loc'] #name columns
     else:
         raise ValueError('Input "split" or "concat" as the last argument')
         
@@ -126,6 +135,46 @@ def get_vent_anem_temp_data(tablename,date1,date2):
     
     return Vent_Anem_Temp
 #=========================================================================================================#
+    
+def get_wbb_weather(date1,date2):
+    ######################################################################
+    # Function to get WBB weather data                                   #
+    ######################################################################
+    import pandas as pd
+   
+    #Connect to SQL
+    mycursor = sql_connect()
+    mycursor.execute("SELECT Date_Time,air_temp_set_1,wind_speed_set_1,wind_direction_set_1,wind_cardinal_direction_set_1d\
+                        FROM Aug2019_WBB_Weather\
+                        WHERE Date_Time >= '{} 00:00:00' AND Date_Time <= '{} 23:59:59.99'\
+                        ORDER BY Date_Time asc;".format(date1,date2))
+    x = mycursor.fetchall()
+    WBB_weather = pd.DataFrame(x)
+    WBB_weather.columns = ['Corrected_DT','Temp','ws','wd','wcd']
+    cols = WBB_weather.columns.drop(['Corrected_DT','wcd'])
+    WBB_weather[cols]=WBB_weather[cols].apply(pd.to_numeric,errors='coerce')
+    
+    return WBB_weather
+#=========================================================================================================#
+    
+def get_wbb_co2(date1,date2):
+    ######################################################################
+    # Function to get WBB weather data                                   #
+    ######################################################################
+    import pandas as pd
+    mycursor = sql_connect()
+    mycursor.execute("SELECT EPOCH_TIME, Local_DT, CO2d_ppm_cal, CH4d_ppm_cal\
+                        FROM Aug2019_WBB_CO2\
+                        WHERE Local_DT >= '{} 00:00:00' AND Local_DT <= '{} 23:59:59.99'\
+                        ORDER BY EPOCH_TIME ASC;".format(date1,date2))
+    x = mycursor.fetchall()
+    WBB_CO2 = pd.DataFrame(x)
+    WBB_CO2.columns = ['EPOCH_TIME','Corrected_DT','WBB_CO2','WBB_CH4']
+    cols = WBB_CO2.columns.drop(['Corrected_DT'])
+    WBB_CO2[cols]=WBB_CO2[cols].apply(pd.to_numeric,errors='coerce')
+    
+    return WBB_CO2
+#=========================================================================================================#
 
 def get_picarro_data(tablename,date1,date2,spikes_or_all,split_or_concat,i):
     import pandas as pd
@@ -149,7 +198,7 @@ def get_picarro_data(tablename,date1,date2,spikes_or_all,split_or_concat,i):
                         order by EPOCH_TIME asc;".format(tablename,date1,date2)) #SQL statement
         data = mycursor.fetchall() #fetch the data
         Picarro = pd.DataFrame(list(data)) #convert data to a dataframe
-        Picarro.columns = ['Local_DT','EPOCH_TIME','CO2','ANEM_Y'] #name columns
+        Picarro.columns = ['Local_DT','EPOCH_TIME','Pic_CO2','ANEM_Y'] #name columns
     elif spikes_or_all == 'all':
         if split_or_concat =='concat':
             mycursor.execute("SELECT Local_DT, EPOCH_TIME, CO2_dry, CH4_dry, ANEMOMETER_UY, ANEMOMETER_UX, ANEMOMETER_UZ, Location_Picarro\
@@ -158,7 +207,7 @@ def get_picarro_data(tablename,date1,date2,spikes_or_all,split_or_concat,i):
                             order by EPOCH_TIME asc;".format(tablename,date1,date2)) #SQL statement
             data = mycursor.fetchall() #fetch the data
             Picarro = pd.DataFrame(list(data)) #convert data to a dataframe
-            Picarro.columns = ['Local_DT','EPOCH_TIME','CO2','CH4','ANEM_Y','ANEM_X','ANEM_Z','Loc'] #name columns
+            Picarro.columns = ['Local_DT','EPOCH_TIME','Pic_CO2','CH4','ANEM_Y','ANEM_X','ANEM_Z','Pic_Loc'] #name columns
         elif split_or_concat == 'split':
             if i == 0:
                 mycursor.execute("SELECT Local_DT, EPOCH_TIME, CO2_dry, CH4_dry, Location_Picarro\
@@ -167,7 +216,7 @@ def get_picarro_data(tablename,date1,date2,spikes_or_all,split_or_concat,i):
                                 order by EPOCH_TIME asc;".format(tablename,date1,date2)) #SQL statement
                 data = mycursor.fetchall() #fetch the data
                 Picarro = pd.DataFrame(list(data)) #convert data to a dataframe
-                Picarro.columns = ['Local_DT','EPOCH_TIME','CO2','CH4','Loc'] #name columns  
+                Picarro.columns = ['Local_DT','EPOCH_TIME','Pic_CO2','CH4','Pic_Loc'] #name columns  
             else:
                 mycursor.execute("SELECT Local_DT, EPOCH_TIME, ANEMOMETER_UY, ANEMOMETER_UX, ANEMOMETER_UZ, Location_Picarro\
                                 FROM {}\
@@ -175,7 +224,7 @@ def get_picarro_data(tablename,date1,date2,spikes_or_all,split_or_concat,i):
                                 order by EPOCH_TIME asc;".format(tablename,date1,date2)) #SQL statement
                 data = mycursor.fetchall() #fetch the data
                 Picarro = pd.DataFrame(list(data)) #convert data to a dataframe
-                Picarro.columns = ['Local_DT','EPOCH_TIME','ANEM_Y','ANEM_X','ANEM_Z','Loc'] #name columns
+                Picarro.columns = ['Local_DT','EPOCH_TIME','ANEM_Y','ANEM_X','ANEM_Z','Pic_Loc'] #name columns
         else:
             raise KeyError('Input "split" or "concat"')
     else:
@@ -255,6 +304,24 @@ def get_sql_data(LI_vent_sql_tablename,Multiplexer_sql_tablename,\
         dict_of_dfs['Picarro'] = pd.DataFrame() #make empty dataframe
         pass
     
+    #Import WBB_weather data
+    #If there is a value error (no data in table for date range), set up an empty dataframe and pass the error
+    print('Retrieving WBB Weather data')
+    try:
+        dict_of_dfs['WBB_Weather'] = get_wbb_weather(date1,date2)
+    except ValueError:
+        dict_of_dfs['WBB_Weather'] = pd.DataFrame() #make empty dataframe
+        pass
+    
+    #Import WBB_CO2 data
+    #If there is a value error (no data in table for date range), set up an empty dataframe and pass the error
+    print('Retrieving WBB CO2 data')
+    try:
+        dict_of_dfs['WBB_CO2'] = get_wbb_co2(date1,date2)
+    except ValueError:
+        dict_of_dfs['WBB_CO2'] = pd.DataFrame() #make empty dataframe
+        pass
+    
     return dict_of_dfs#return all of the fetched dataframes
 
 #=========================================================================================================#
@@ -269,7 +336,17 @@ def simple_plot(df,x_ax,y_ax):
     plt.gcf().autofmt_xdate() #get a nice date format for the x axis
     fig.tight_layout()
     plt.show()
-    
+#=========================================================================================================#
+def plot_stacked_same(args):
+    import matplotlib.pyplot as plt
+    from pandas.plotting import register_matplotlib_converters
+    register_matplotlib_converters()
+    fig,ax = plt.subplots(figsize=(20,10))
+    for arg in args:
+        ax.plot(arg[0][arg[1]],arg[0][arg[2]])
+    plt.gcf().autofmt_xdate()
+    fig.tight_layout()
+    plt.show()
 #=========================================================================================================#
  #Make a figure of multiple plots plotted above one another. X axes have the same values
 def plot_vertical_stack(args):
@@ -287,7 +364,7 @@ def plot_vertical_stack(args):
     register_matplotlib_converters()
     
     num_plots = len(args)
-    fig = plt.figure(figsize = (20,num_plots*5))
+    fig = plt.figure(figsize = (20,num_plots*10))
     gs = grd.GridSpec(num_plots,1)
     i=0
     for arg in args:
@@ -297,8 +374,11 @@ def plot_vertical_stack(args):
             ax = fig.add_subplot(gs[i],sharex=ax)
         if arg[2] == 'wd':
             ax.scatter(arg[0][arg[1]],arg[0][arg[2]],s=.5)
+            ax.set_title("{}".format(arg[2]),size=20)
         else: 
             ax.plot(arg[0][arg[1]],arg[0][arg[2]])
+            ax.set_title("{}".format(arg[2]),size=20)
+
         if ('ANEM_X' in arg[0].columns) & (arg[2] == 'CO2'):
             ax.set_ylim([390,650]) 
         i+=1
@@ -308,10 +388,17 @@ def plot_vertical_stack(args):
     
 #============================================================================================================#
     
-def plot_refinement_all(args):
+def plot_refinement_all(args,stack_or_separate):
+    
+    if stack_or_separate =='stack':
+        plotter = plot_stacked_same
+    elif stack_or_separate =='separate':
+        plotter = plot_vertical_stack
+    else:
+        ValueError('enter stack or separate')
     
     
-    plot_vertical_stack(args) #plot the data
+    plotter(args) #plot the data
     cont_ref = True #set "Continue refining" to true, wont be changed until user says so
     ask = input("Is this an acceptable range? ") #ask the user if this is a good range, or if they want to continue refining
     
@@ -338,7 +425,7 @@ def plot_refinement_all(args):
             l.append(args[i][2])
             plot_list.append(l)
             
-        plot_vertical_stack(plot_list) #plot over that range
+        plotter(plot_list) #plot over that range
         
         ask = input("Is this an acceptable range? ") #ask the user if this is a good range, or if they want to continue refining
         if ask == 'y':
@@ -697,7 +784,7 @@ def get_single_vent_anem_temp_spike(df,y_ax):
                 after_ix =spike_ixs[-1]+1
                 before_rot = df['Rotations'].loc[before_ix] #Get the numer of rotations before the spike began to use in average
                 after_rot = df['Rotations'].loc[after_ix] #Get the number of rotations after the spike ended to use in average
-                average_rot = (before_rot+after_rot)/2 #get the average number of rotations surrounding the dip
+                #average_rot = (before_rot+after_rot)/2 #get the average number of rotations surrounding the dip
 
                 first_rot_diff = before_rot - df['Rotations'].loc[spike_ixs[0]] #Store the difference in number of rotations recorded for the first "spike" index
                 last_rot_diff = after_rot - df['Rotations'].loc[spike_ixs[-1]]
@@ -852,7 +939,6 @@ def get_lag_groups(actual_spike_df,column):
             st_ix = end_ix
     df_list[grp] = pd.DataFrame(spike_df.loc[st_ix:end_ix])
     
-    print(df_list)
 
     ETs = []
     ave_lags = []
@@ -869,13 +955,18 @@ def get_lag_groups(actual_spike_df,column):
 
 #==============================================================================================================#
     
-def df_correction_lag_slope(final_lags,df_to_correct):
+def df_correction_lag_slope(final_lags,df):
+    ######################################################################
+    # Correct the time drift of a dataframe using the grouped lag df     #
+    ######################################################################
+    
     import pandas as pd
     from datetime import datetime
 
     def row_correction(row,final_lags_df,grp):
         return row+final_lags_df['ave_lag'][grp]+(row-final_lags_df['mid_ET'][grp])*final_lags_df['slope'][grp]
 
+    df_to_correct = df.copy()
     df_corr_list = {}
     df_corr_list[0] = df_to_correct.where((df_to_correct['EPOCH_TIME'] < final_lags.loc[1,'mid_ET'])).dropna()
     df_corr_list[0]['Corrected_ET'] = df_corr_list[0]['EPOCH_TIME'].apply(row_correction,args=(final_lags,0))
@@ -886,7 +977,7 @@ def df_correction_lag_slope(final_lags,df_to_correct):
         df_corr_list[i]['Corrected_ET'] = df_corr_list[i]['EPOCH_TIME'].apply(row_correction,args=(final_lags,i))
         df_corr_list[i]['Corrected_DT'] = df_corr_list[i]['Corrected_ET'].apply(lambda x: datetime.fromtimestamp(x))
 
-    corrected_df = pd.concat(df_corr_list).drop_duplicates()
+    corrected_df = pd.concat(df_corr_list).drop_duplicates(['EPOCH_TIME'])
     
     return corrected_df
 
@@ -897,24 +988,73 @@ def drift_correct(dict_of_dfs):
     
     print("Initializing Drift Correct")
     
-    data = dict_of_dfs
+    data = dict_of_dfs.copy()
     spikes = pd.read_pickle('Spike_ETs.pkl')
     for key in data:
         print('Correcting data for {}'.format(key))
         if key == 'Multiplexer_Weather':
+            data['Multiplexer_Weather'].drop_duplicates(['EPOCH_TIME'],inplace=True)
             data['Multiplexer_Weather']['Corrected_ET'] = data['Multiplexer_CO2_2']['Corrected_ET'].values
             data[key]['Corrected_ET'] = data['Multiplexer_Weather'].apply(lambda row: row['Corrected_ET'] - 2,axis=1)
             data[key]['Corrected_DT'] = data['Multiplexer_Weather']['Corrected_ET'].apply(lambda x: datetime.fromtimestamp(x))
+            continue
+        elif (key == 'WBB_CO2')|(key=='WBB_Weather'):
             continue
         lags = get_lag_groups(spikes,key)
         data[key] = df_correction_lag_slope(lags,data[key])
     return data
 #==============================================================================================================#
-def remove_spikes(spike_df,data):
+def delete_WBB_cal(df_to_corr):
+    import pandas as pd
+    z = df_to_corr.where(df_to_corr['WBB_CO2']<10).dropna()
+
+    z['diff'] = z['EPOCH_TIME']-z['EPOCH_TIME'].shift(1)
+    z.reset_index(drop=True,inplace=True)
+
+    grp = int(0)
+    df_list = {}
+    st_ix = 0
+    end_ix = 0
+
+    for i in range(1,len(z)):
+        if z.loc[i,'diff'] < 1000:
+            end_ix += 1
+        else:
+            df_list[grp] = pd.DataFrame(z.loc[st_ix:end_ix])
+            grp+=1
+            end_ix += 1
+            st_ix = end_ix
+    df_list[grp] = pd.DataFrame(z.loc[st_ix:end_ix])
+    
+    starts = []
+    ends = [] 
+    for i in range(0,len(df_list)):
+        starts.append(df_list[i]['EPOCH_TIME'].iloc[0])
+        ends.append(df_list[i]['EPOCH_TIME'].iloc[-1])
+
+    df = pd.DataFrame({'Starts':starts,'Ends':ends})
+    beg = df_to_corr['EPOCH_TIME'].iloc[0]
+    end = df_to_corr['EPOCH_TIME'].iloc[-1]
+
+    df = df.loc[(df['Starts']>beg)&(df['Ends']<end)]
+
+    new_df = df_to_corr
+    for i in range(0,len(df)):
+        new_df = new_df.loc[(new_df['EPOCH_TIME']<(df['Starts'].iloc[i]-120))|(new_df['EPOCH_TIME']>(df['Ends'].iloc[i]+120))]
+
+    return new_df
+#==============================================================================================================#
+def remove_spikes(spike_df,dict_of_dfs):
     import pandas as pd
     
+    data = dict_of_dfs.copy()
     for key in data:
-        if key == 'Multiplexer_Weather':
+        if key == 'WBB_Weather':
+            continue
+        elif key == 'WBB_CO2':
+            data[key] = delete_WBB_cal(data[key])
+            continue
+        elif key == 'Multiplexer_Weather':
             key = 'Multiplexer_CO2_1'
         df = get_grouped_spike_list(spike_df,key)
         starts = []
@@ -931,13 +1071,55 @@ def remove_spikes(spike_df,data):
         
         new_df = data[key]
         for i in range(0,len(df)):
-            new_df = new_df.loc[(new_df['Corrected_ET']<(df['Starts'].iloc[i]-60))|(new_df['Corrected_ET']>(df['Ends'].iloc[i]+60))]
+            new_df = new_df.loc[(new_df['Corrected_ET']<(df['Starts'].iloc[i]-120))|(new_df['Corrected_ET']>(df['Ends'].iloc[i]+120))]
         
         data[key]=new_df
         
     return data
 #==============================================================================================================#
+def delete_WBB_cal(df_to_corr):
+    import pandas as pd
+    z = df_to_corr.where(df_to_corr['WBB_CO2']<10).dropna()
+
+    z['diff'] = z['EPOCH_TIME']-z['EPOCH_TIME'].shift(1)
+    z.reset_index(drop=True,inplace=True)
+
+    grp = int(0)
+    df_list = {}
+    st_ix = 0
+    end_ix = 0
+
+    for i in range(1,len(z)):
+        if z.loc[i,'diff'] < 1000:
+            end_ix += 1
+        else:
+            df_list[grp] = pd.DataFrame(z.loc[st_ix:end_ix])
+            grp+=1
+            end_ix += 1
+            st_ix = end_ix
+    df_list[grp] = pd.DataFrame(z.loc[st_ix:end_ix])
+    
+    starts = []
+    ends = [] 
+    for i in range(0,len(df_list)):
+        starts.append(df_list[i]['EPOCH_TIME'].iloc[0])
+        ends.append(df_list[i]['EPOCH_TIME'].iloc[-1])
+
+    df = pd.DataFrame({'Starts':starts,'Ends':ends})
+    beg = df_to_corr['EPOCH_TIME'].iloc[0]
+    end = df_to_corr['EPOCH_TIME'].iloc[-1]
+
+    df = df.loc[(df['Starts']>beg)&(df['Ends']<end)]
+
+    new_df = df_to_corr
+    for i in range(0,len(df)):
+        new_df = new_df.loc[(new_df['EPOCH_TIME']<(df['Starts'].iloc[i]-120))|(new_df['EPOCH_TIME']>(df['Ends'].iloc[i]+120))]
+
+    return new_df
+#==============================================================================================================#
 def get_grouped_spike_list(spike_df,key):
+    
+    
     import pandas as pd
     
     spike_df = spike_df[['Actual_DT','Actual_ET',key]].dropna()
@@ -967,30 +1149,55 @@ def get_grouped_spike_list(spike_df,key):
 def wind_dir(x,y,pos):
     import numpy as np
     
+    #determine when we need to add 360 such that the angle falls between 0 and 360 (arctan gives vals -180 to 180)
     def add_360(angle):
         if angle < 0:
             result = angle+360
         else:
             result = angle
         return result
+    
+    #Anemometer was facing west for positions 1,2,3,4,6. Anemometer was facing west for postion 5
     if pos == 5:
-        result = add_360(90 - (np.arctan2(y,x)/np.pi*180))
+        result = add_360(90 - (np.arctan2(y,x)/np.pi*180)) #convert x,y data to a direction in degrees from 0 to 360
     else:
-        result = add_360(-90 - (np.arctan2(y,x)/np.pi*180))
-    return result
+        result = add_360(-90 - (np.arctan2(y,x)/np.pi*180)) #convert x,y data to a direction in degrees from 0 to 360
+    return result 
 
 #==============================================================================================================#
 
-def wind_add(df,pos):
+def wind_add(df,x_lab,y_lab):
+    ######################################################################
+    # Use R to plot a bivariate polar plot. Uses R package "openair"     #
+    # Converts a pandas dataframe to r dataframe and plots.              #
+    # Inputs:   df = pandas dataframe with x and y wind data to be       #
+    #                converted to direction and speed. Must also have a  #
+    #                column labeled 'Pic_Loc' representing the location  #
+    #                of the picarro.                                     #
+    #           x_lab,y_lab = columns to be used for direction and speed #
+    #                         calculation                                #
+    ######################################################################
     import numpy as np
-    
-    df['wd'] = df.apply(lambda row: wind_dir(row['ANEM_X'],row['ANEM_Y'],row['Loc']),axis=1)
-    df['ws'] = df.apply(lambda row : np.sqrt(row['ANEM_X']**2+row['ANEM_Y']**2),axis=1)
+    print("Adding Wind Direction as 'wd'")
+    wd_vec = np.vectorize(wind_dir) #vectorize the wind direction function
+    df['wd'] = wd_vec(df[x_lab],df[y_lab],df['Pic_Loc']) #add the 2d wind direction
+    print("Adding Wind Speed as 'ws'")
+    df['ws'] = np.sqrt(df[x_lab]**2+df[x_lab]**2) #add the 2d wind speed
     return df
 
 #==============================================================================================================#
 
 def polar_plot(df,pollutant):
+    ######################################################################
+    # Use R to plot a bivariate polar plot. Uses R package "openair"     #
+    # Converts a pandas dataframe to r dataframe and plots.              #
+    # Inputs:   df = pandas dataframe with pollutant,                    #
+    #               wind direction (labeled 'wd') and wind speed         #
+    #               (labeled 'ws').                                      #
+    #           pollutant = concentration column, likely 'Pic_CO2 or CH4 #
+    ######################################################################
+    
+    #Import packages
     import rpy2
     import rpy2.robjects as ro
     from rpy2.robjects.packages import importr
@@ -1004,20 +1211,28 @@ def polar_plot(df,pollutant):
     utils.chooseCRANmirror(ind=1) # select the first mirror in the list
     if not ro.packages.isinstalled('openair'):
         utils.install_packages('openair')
-    r=ro.r
-    r.library('openair')
+        
+    r=ro.r   #set r object to "r"
+    r.library('openair') #load openair
     
-    pandas2ri.activate()
-    r_dataframe = pandas2ri.py2ri(df)
+    pandas2ri.activate() #activate dataframe converter
+    r_dataframe = pandas2ri.py2ri(df) #convert pandas to r
 
-    with rpy2.robjects.lib.grdevices.render_to_bytesio(grdevices.png, width=900, height=700, res=150) as img:
-        r.polarPlot(r_dataframe,pollutant)
+    with rpy2.robjects.lib.grdevices.render_to_bytesio(grdevices.png, width=900, height=700, res=150) as img: #set image settings
+        r.polarPlot(r_dataframe,pollutant) #prepare plot
 
-    IPython.display.display(IPython.display.Image(data=img.getvalue(), format='png', embed=True))
+    IPython.display.display(IPython.display.Image(data=img.getvalue(), format='png', embed=True)) #display plot
     
 #==============================================================================================================#
     
 def wind_rose(df):
+    ######################################################################
+    # Use R to plot a wind rose diagram. Uses R package "openair"        #
+    # Converts a pandas dataframe to r dataframe and plots.              #
+    # Inputs:   df = pandas dataframe with pollutant,                    #
+    #               wind direction (labeled 'wd') and wind speed         #
+    #               (labeled 'ws').                                      #
+    ######################################################################
     import rpy2
     import rpy2.robjects as ro
     from rpy2.robjects.packages import importr
@@ -1045,6 +1260,16 @@ def wind_rose(df):
 #==============================================================================================================#
     
 def pollution_rose(df,pollutant):
+    ######################################################################
+    # Use R to plot a pollution rose diagram. Uses R package "openair"   #
+    # Converts a pandas dataframe to r dataframe and plots.              #
+    # Inputs:   df = pandas dataframe with pollutant,                    #
+    #               wind direction (labeled 'wd') and wind speed         #
+    #               (labeled 'ws').                                      #
+    #           pollutant = concentration column, likely 'Pic_CO2 or CH4 #
+    ######################################################################
+    
+    #Import everything to view graphics
     import rpy2
     import rpy2.robjects as ro
     from rpy2.robjects.packages import importr
@@ -1058,27 +1283,38 @@ def pollution_rose(df,pollutant):
     utils.chooseCRANmirror(ind=1) # select the first mirror in the list
     if not ro.packages.isinstalled('openair'):
         utils.install_packages('openair')
-    r=ro.r
-    r.library('openair')
+        
+        
+    r=ro.r #set r object to "r"
+    r.library('openair') #load library openair
     
-    pandas2ri.activate()
-    r_dataframe = pandas2ri.py2ri(df)
+    pandas2ri.activate() #activate the pandas to r dataframe function
+    r_dataframe = pandas2ri.py2ri(df) #convert pandas df to r df
 
-    with rpy2.robjects.lib.grdevices.render_to_bytesio(grdevices.png, width=900, height=700, res=150) as img:
-        r.pollutionRose(r_dataframe,pollutant)
+    with rpy2.robjects.lib.grdevices.render_to_bytesio(grdevices.png, width=900, height=700, res=150) as img: #graphical settings
+        r.pollutionRose(r_dataframe,pollutant)  # setup plot through r
 
-    IPython.display.display(IPython.display.Image(data=img.getvalue(), format='png', embed=True))
-    
+    IPython.display.display(IPython.display.Image(data=img.getvalue(), format='png', embed=True)) #display plot
     
 #==============================================================================================================#
+
+#==============================================================================================================#
 def full_download_process():
+    ######################################################################
+    # Function to download and store all necessary data for a user input #
+    # date range.                                                        #
+    # Returns a dataframe with all variables concatenated, cleaned, and  #
+    # drift corrected.                                                   #
+    ######################################################################
     import pandas as pd
-    date1,date2 = get_date_range()
+    date1,date2 = get_date_range() #ask user for date range
     data = get_sql_data("Aug2019_LI_8100_Vent",\
                   "Aug2019_Multiplexer","Aug2019_Vent_Anem_Temp",\
-                  "Aug2019_Picarro",date1,date2,'all','split')
-    data = drift_correct(data)
+                  "Aug2019_Picarro",date1,date2,'all','split') #fetch data from four instruments between dates
+    data = drift_correct(data) #correct drifts
     for key in data:
-        data[key].reset_index(drop=True,inplace=True)
-    data['Picarro_ANEM'] = wind_add(data['Picarro_ANEM'],1)
-    data = remove_spikes(pd.read_pickle('Spike_ETs.pkl'),data)
+        data[key].reset_index(drop=True,inplace=True) #reset indecies (get added for some reason)
+    data = remove_spikes(pd.read_pickle('Spike_ETs.pkl'),data) #remove the spikes so they don't skew the data
+   
+
+    return return_data
