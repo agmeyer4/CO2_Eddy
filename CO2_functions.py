@@ -7,8 +7,9 @@ This is a temporary script file.
 #=========================================================================================================#
 def get_date_range():
     #Ask the user for a date range and return the results
+    print("helloworld")
     date1=input("Enter Start Date YYYY-mm-DD: ")
-    date2=input("Enter End Date YYYY-mm-DD: ")
+    date2=input("Enter End Date YYYY-mm-DD: ") 
     return date1,date2
 
 #=========================================================================================================#
@@ -207,7 +208,7 @@ def get_picarro_data(tablename,date1,date2,spikes_or_all,split_or_concat,i):
                             order by EPOCH_TIME asc;".format(tablename,date1,date2)) #SQL statement
             data = mycursor.fetchall() #fetch the data
             Picarro = pd.DataFrame(list(data)) #convert data to a dataframe
-            Picarro.columns = ['Local_DT','EPOCH_TIME','Pic_CO2','CH4','ANEM_Y','ANEM_X','ANEM_Z','Pic_Loc'] #name columns
+            Picarro.columns = ['Local_DT','EPOCH_TIME','Pic_CO2','Pic_CH4','ANEM_Y','ANEM_X','ANEM_Z','Pic_Loc'] #name columns
         elif split_or_concat == 'split':
             if i == 0:
                 mycursor.execute("SELECT Local_DT, EPOCH_TIME, CO2_dry, CH4_dry, Location_Picarro\
@@ -216,7 +217,7 @@ def get_picarro_data(tablename,date1,date2,spikes_or_all,split_or_concat,i):
                                 order by EPOCH_TIME asc;".format(tablename,date1,date2)) #SQL statement
                 data = mycursor.fetchall() #fetch the data
                 Picarro = pd.DataFrame(list(data)) #convert data to a dataframe
-                Picarro.columns = ['Local_DT','EPOCH_TIME','Pic_CO2','CH4','Pic_Loc'] #name columns  
+                Picarro.columns = ['Local_DT','EPOCH_TIME','Pic_CO2','Pic_CH4','Pic_Loc'] #name columns  
             else:
                 mycursor.execute("SELECT Local_DT, EPOCH_TIME, ANEMOMETER_UY, ANEMOMETER_UX, ANEMOMETER_UZ, Location_Picarro\
                                 FROM {}\
@@ -342,6 +343,8 @@ def plot_stacked_same(args):
     from pandas.plotting import register_matplotlib_converters
     register_matplotlib_converters()
     fig,ax = plt.subplots(figsize=(20,10))
+    
+    
     for arg in args:
         ax.plot(arg[0][arg[1]],arg[0][arg[2]])
     plt.gcf().autofmt_xdate()
@@ -368,6 +371,7 @@ def plot_vertical_stack(args):
     gs = grd.GridSpec(num_plots,1)
     i=0
     for arg in args:
+        
         if i == 0:
             ax = fig.add_subplot(gs[i])
         else:
@@ -396,6 +400,13 @@ def plot_refinement_all(args,stack_or_separate):
         plotter = plot_vertical_stack
     else:
         ValueError('enter stack or separate')
+    
+    for arg in args:
+        if arg[1] in arg[0]:
+            continue
+        else:
+            arg[0] = arg[0].reset_index().copy()
+    
     
     
     plotter(args) #plot the data
@@ -1317,4 +1328,4 @@ def full_download_process():
     data = remove_spikes(pd.read_pickle('Spike_ETs.pkl'),data) #remove the spikes so they don't skew the data
    
 
-    return return_data
+    return data
