@@ -779,8 +779,8 @@ def get_single_vent_anem_temp_spike(df,y_ax):
         if up_or_down == 'spike':
             threshold = float(input("Enter the threshold value which all spikes go above: "))
             spike_ixs = np.where(df[y_ax]>=threshold)[0] #If it's a spike, get the indecies of all values above the input threshold
-            first_rot = df['Rotations'].loc[spike_ixs[0]] #Store the number of rotations recorded for the first "spike" index
-            rot_tot = df.loc[spike_ixs[0]:spike_ixs[-1]].sum()['Rotations'] #Get the sum of all rotations recorded during the spike
+            first_rot = df[y_ax].loc[spike_ixs[0]] #Store the number of rotations recorded for the first "spike" index
+            rot_tot = df.loc[spike_ixs[0]:spike_ixs[-1]].sum()[y_ax] #Get the sum of all rotations recorded during the spike
             rot_p_sec = rot_tot/10 #The spike is a 10 second run, divide by 10 to get a "rotations per second" value
             sec_before = int(round(first_rot/rot_p_sec)) #Find the amount of time before the initial spike epoch time when the spike started (number of rotations in first 
                                                         # spike recording divided by spikes per second)
@@ -793,12 +793,12 @@ def get_single_vent_anem_temp_spike(df,y_ax):
             else: 
                 before_ix = spike_ixs[0]-1
                 after_ix =spike_ixs[-1]+1
-                before_rot = df['Rotations'].loc[before_ix] #Get the numer of rotations before the spike began to use in average
-                after_rot = df['Rotations'].loc[after_ix] #Get the number of rotations after the spike ended to use in average
+                before_rot = df[y_ax].loc[before_ix] #Get the numer of rotations before the spike began to use in average
+                after_rot = df[y_ax].loc[after_ix] #Get the number of rotations after the spike ended to use in average
                 #average_rot = (before_rot+after_rot)/2 #get the average number of rotations surrounding the dip
 
-                first_rot_diff = before_rot - df['Rotations'].loc[spike_ixs[0]] #Store the difference in number of rotations recorded for the first "spike" index
-                last_rot_diff = after_rot - df['Rotations'].loc[spike_ixs[-1]]
+                first_rot_diff = before_rot - df[y_ax].loc[spike_ixs[0]] #Store the difference in number of rotations recorded for the first "spike" index
+                last_rot_diff = after_rot - df[y_ax].loc[spike_ixs[-1]]
 
                 rot_tot = first_rot_diff+last_rot_diff #Get the sum of all rotations recorded during the spike subtracted from twice the average
                 rot_p_sec = rot_tot/10 #The spike is a 10 second run, divide by 10 to get a "rotations per second" value
@@ -1326,6 +1326,7 @@ def full_download_process():
     for key in data:
         data[key].reset_index(drop=True,inplace=True) #reset indecies (get added for some reason)
     data = remove_spikes(pd.read_pickle('Spike_ETs.pkl'),data) #remove the spikes so they don't skew the data
-   
+    for key in data:
+        data[key]['DOW'] = data[key]['Corrected_DT'].dt.dayofweek
 
     return data

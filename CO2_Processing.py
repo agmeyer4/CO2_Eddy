@@ -9,7 +9,7 @@ def downsample_and_concatenate(dict_of_df):
     return_data = {}
     return_data['Picarro'] = concat_pic(data)
     return_data['Multi'] = concat_multi(data)
-    return_data['LI'] = data['LI_Vent'].set_index('Corrected_DT',drop=False).resample('1S').mean()
+    return_data['LI'] = data['LI_Vent'].drop(['EPOCH_TIME','Corrected_ET'],axis=1).set_index('Corrected_DT',drop=False).resample('1S').mean()
     return_data['Vent'] = data['Vent_Anem_Temp'].drop(['EPOCH_TIME','Corrected_ET'],axis=1).set_index('Corrected_DT').resample('10S').mean()
     return_data['WBB_CO2'] = data['WBB_CO2'].set_index('Corrected_DT').resample('10S').mean()
     return_data['WBB_Weather'] = data['WBB_Weather'].set_index('Corrected_DT').resample('T').mean()
