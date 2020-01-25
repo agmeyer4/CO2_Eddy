@@ -10,5 +10,5 @@ dependencies:
   - pandas
   - rpy2
   - Ipython
+  - tensorflow
 
-prefix: C:\Users\agmey\Anaconda3\envs\CO2_Eddy

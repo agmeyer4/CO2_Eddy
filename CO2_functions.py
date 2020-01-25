@@ -78,22 +78,22 @@ def get_multiplexer_data(tablename,date1,date2,split_or_concat,i):
     mycursor = sql_connect()   
     
     if split_or_concat == 'split':
-        if i < 4:
+        if i < 3:
             mycursor.execute("SELECT Local_DT,EPOCH_TIME,CO2_{},Location_Multi\
                         FROM {}\
                         WHERE Local_DT >= '{} 00:00:00' AND Local_DT <= '{} 23:59:59.99'\
                         order by EPOCH_TIME asc;".format(i,tablename,date1,date2)) #SQL query
             data = mycursor.fetchall() #fetch the data
             Multiplexer = pd.DataFrame(list(data)) #convert imported data into a dataframe
-            Multiplexer.columns = ['Local_DT','EPOCH_TIME','CO2_{}'.format(i),'Location'] #name columns
-        else:
-            mycursor.execute("SELECT Local_DT,EPOCH_TIME,Rotations, Wind_Velocity,Wind_Direction,Temp,Location_Multi\
+            Multiplexer.columns = ['Local_DT','EPOCH_TIME','CO2_{}'.format(i),'Multi_Loc'] #name columns
+        elif i == 3:
+            mycursor.execute("SELECT Local_DT,EPOCH_TIME,CO2_{},Rotations, Wind_Velocity,Wind_Direction,Temp,Location_Multi\
                         FROM {}\
                         WHERE Local_DT >= '{} 00:00:00' AND Local_DT <= '{} 23:59:59.99'\
-                        order by EPOCH_TIME asc;".format(tablename,date1,date2)) #SQL query
+                        order by EPOCH_TIME asc;".format(i,tablename,date1,date2)) #SQL query
             data = mycursor.fetchall() #fetch the data
             Multiplexer = pd.DataFrame(list(data)) #convert imported data into a dataframe
-            Multiplexer.columns = ['Local_DT','EPOCH_TIME','Rotations','Wind_Velocity','Wind_Direction','Temp','Multi_loc'] #name columns
+            Multiplexer.columns = ['Local_DT','EPOCH_TIME','CO2_{}'.format(i),'Rotations','Wind_Velocity','Wind_Direction','Temp','Multi_Loc'] #name columns
     elif split_or_concat == 'concat':
         mycursor.execute("SELECT *\
                     FROM {}\
@@ -267,11 +267,11 @@ def get_sql_data(LI_vent_sql_tablename,Multiplexer_sql_tablename,\
         if split_or_concat == 'concat':
             dict_of_dfs['Multiplexer'] = get_multiplexer_data(Multiplexer_sql_tablename,date1,date2,split_or_concat,0)
         elif split_or_concat == 'split':
-            for i in range(1,5):
-                if i < 4:
-                    dict_of_dfs['Multiplexer_CO2_{}'.format(i)] = get_multiplexer_data(Multiplexer_sql_tablename,date1,date2,split_or_concat,i)
-                else:
-                    dict_of_dfs['Multiplexer_Weather'] = get_multiplexer_data(Multiplexer_sql_tablename,date1,date2,split_or_concat,i)
+            for i in range(1,4):
+                #if i < 4:
+                dict_of_dfs['Multiplexer_CO2_{}'.format(i)] = get_multiplexer_data(Multiplexer_sql_tablename,date1,date2,split_or_concat,i)
+                #else:
+                 #   dict_of_dfs['Multiplexer_Weather'] = get_multiplexer_data(Multiplexer_sql_tablename,date1,date2,split_or_concat,i)
                 
         else: 
             raise KeyError('Input "split" or "concat" as the last argument')
@@ -291,19 +291,19 @@ def get_sql_data(LI_vent_sql_tablename,Multiplexer_sql_tablename,\
     
     #Import Picarro data
     #If there is a value error (no data in table for date range), set up an empty dataframe and pass the error
-    print('Retrieving Picarro data')
-    try:
-        if split_or_concat == 'concat':
-            dict_of_dfs['Picarro'] = get_picarro_data(Picarro_sql_tablename,date1,date2,spikes_or_all,split_or_concat,0)
-        if split_or_concat == 'split':
-            for i in range(0,2):
-                if i == 0 :
-                    dict_of_dfs['Picarro_CO2'] = get_picarro_data(Picarro_sql_tablename,date1,date2,spikes_or_all,split_or_concat,i)
-                else:
-                    dict_of_dfs['Picarro_ANEM'] = get_picarro_data(Picarro_sql_tablename,date1,date2,spikes_or_all,split_or_concat,i)
-    except ValueError:
-        dict_of_dfs['Picarro'] = pd.DataFrame() #make empty dataframe
-        pass
+#    print('Retrieving Picarro data')
+#    try:
+#        if split_or_concat == 'concat':
+#            dict_of_dfs['Picarro'] = get_picarro_data(Picarro_sql_tablename,date1,date2,spikes_or_all,split_or_concat,0)
+#        if split_or_concat == 'split':
+#            for i in range(0,2):
+#                if i == 0 :
+#                    dict_of_dfs['Picarro_CO2'] = get_picarro_data(Picarro_sql_tablename,date1,date2,spikes_or_all,split_or_concat,i)
+#                else:
+#                    dict_of_dfs['Picarro_ANEM'] = get_picarro_data(Picarro_sql_tablename,date1,date2,spikes_or_all,split_or_concat,i)
+#    except ValueError:
+#        dict_of_dfs['Picarro'] = pd.DataFrame() #make empty dataframe
+#        pass
     
     #Import WBB_weather data
     #If there is a value error (no data in table for date range), set up an empty dataframe and pass the error
@@ -377,7 +377,7 @@ def plot_vertical_stack(args):
         else:
             ax = fig.add_subplot(gs[i],sharex=ax)
         if arg[2] == 'wd':
-            ax.scatter(arg[0][arg[1]],arg[0][arg[2]],s=.5)
+            ax.scatter(arg[0][arg[1]],arg[0][arg[2]],s=2)
             ax.set_title("{}".format(arg[2]),size=20)
         else: 
             ax.plot(arg[0][arg[1]],arg[0][arg[2]])
@@ -988,8 +988,9 @@ def df_correction_lag_slope(final_lags,df):
         df_corr_list[i]['Corrected_ET'] = df_corr_list[i]['EPOCH_TIME'].apply(row_correction,args=(final_lags,i))
         df_corr_list[i]['Corrected_DT'] = df_corr_list[i]['Corrected_ET'].apply(lambda x: datetime.fromtimestamp(x))
 
-    corrected_df = pd.concat(df_corr_list).drop_duplicates(['EPOCH_TIME'])
-    
+    corrected_df = pd.concat(df_corr_list)
+    corrected_df.drop_duplicates(['EPOCH_TIME'],inplace=True)
+
     return corrected_df
 
 #==============================================================================================================#
@@ -1004,6 +1005,7 @@ def drift_correct(dict_of_dfs):
     for key in data:
         print('Correcting data for {}'.format(key))
         if key == 'Multiplexer_Weather':
+            continue
             data['Multiplexer_Weather'].drop_duplicates(['EPOCH_TIME'],inplace=True)
             data['Multiplexer_Weather']['Corrected_ET'] = data['Multiplexer_CO2_2']['Corrected_ET'].values
             data[key]['Corrected_ET'] = data['Multiplexer_Weather'].apply(lambda row: row['Corrected_ET'] - 2,axis=1)
@@ -1013,6 +1015,11 @@ def drift_correct(dict_of_dfs):
             continue
         lags = get_lag_groups(spikes,key)
         data[key] = df_correction_lag_slope(lags,data[key])
+    data['Multiplexer_Weather'] = data['Multiplexer_CO2_3'][['EPOCH_TIME','Local_DT','Rotations','Wind_Velocity','Wind_Direction','Corrected_ET']]
+    data['Multiplexer_Weather']['Corrected_ET'] = data['Multiplexer_Weather'].apply(lambda row: row['Corrected_ET']-2,axis=1)
+    data['Multiplexer_Weather']['Corrected_DT'] = data['Multiplexer_Weather']['Corrected_ET'].apply(lambda row: datetime.fromtimestamp(row))
+    
+    data['Multiplexer_CO2_3'].drop(['Rotations','Wind_Velocity','Wind_Direction'],axis=1,inplace=True)
     return data
 #==============================================================================================================#
 def delete_WBB_cal(df_to_corr):
