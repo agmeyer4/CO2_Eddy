@@ -291,19 +291,19 @@ def get_sql_data(LI_vent_sql_tablename,Multiplexer_sql_tablename,\
     
     #Import Picarro data
     #If there is a value error (no data in table for date range), set up an empty dataframe and pass the error
-#    print('Retrieving Picarro data')
-#    try:
-#        if split_or_concat == 'concat':
-#            dict_of_dfs['Picarro'] = get_picarro_data(Picarro_sql_tablename,date1,date2,spikes_or_all,split_or_concat,0)
-#        if split_or_concat == 'split':
-#            for i in range(0,2):
-#                if i == 0 :
-#                    dict_of_dfs['Picarro_CO2'] = get_picarro_data(Picarro_sql_tablename,date1,date2,spikes_or_all,split_or_concat,i)
-#                else:
-#                    dict_of_dfs['Picarro_ANEM'] = get_picarro_data(Picarro_sql_tablename,date1,date2,spikes_or_all,split_or_concat,i)
-#    except ValueError:
-#        dict_of_dfs['Picarro'] = pd.DataFrame() #make empty dataframe
-#        pass
+    print('Retrieving Picarro data')
+    try:
+        if split_or_concat == 'concat':
+            dict_of_dfs['Picarro'] = get_picarro_data(Picarro_sql_tablename,date1,date2,spikes_or_all,split_or_concat,0)
+        if split_or_concat == 'split':
+            for i in range(0,2):
+                if i == 0 :
+                    dict_of_dfs['Picarro_CO2'] = get_picarro_data(Picarro_sql_tablename,date1,date2,spikes_or_all,split_or_concat,i)
+                else:
+                    dict_of_dfs['Picarro_ANEM'] = get_picarro_data(Picarro_sql_tablename,date1,date2,spikes_or_all,split_or_concat,i)
+    except ValueError:
+        dict_of_dfs['Picarro'] = pd.DataFrame() #make empty dataframe
+        pass
     
     #Import WBB_weather data
     #If there is a value error (no data in table for date range), set up an empty dataframe and pass the error
@@ -1332,8 +1332,8 @@ def full_download_process():
     data = drift_correct(data) #correct drifts
     for key in data:
         data[key].reset_index(drop=True,inplace=True) #reset indecies (get added for some reason)
-    data = remove_spikes(pd.read_pickle('Spike_ETs.pkl'),data) #remove the spikes so they don't skew the data
-    for key in data:
-        data[key]['DOW'] = data[key]['Corrected_DT'].dt.dayofweek
+    #data = remove_spikes(pd.read_pickle('Spike_ETs.pkl'),data) #remove the spikes so they don't skew the data
+    #for key in data:
+    #    data[key]['DOW'] = data[key]['Corrected_DT'].dt.dayofweek
 
     return data
