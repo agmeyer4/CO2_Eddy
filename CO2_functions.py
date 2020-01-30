@@ -291,19 +291,19 @@ def get_sql_data(LI_vent_sql_tablename,Multiplexer_sql_tablename,\
     
     #Import Picarro data
     #If there is a value error (no data in table for date range), set up an empty dataframe and pass the error
-    print('Retrieving Picarro data')
-    try:
-        if split_or_concat == 'concat':
-            dict_of_dfs['Picarro'] = get_picarro_data(Picarro_sql_tablename,date1,date2,spikes_or_all,split_or_concat,0)
-        if split_or_concat == 'split':
-            for i in range(0,2):
-                if i == 0 :
-                    dict_of_dfs['Picarro_CO2'] = get_picarro_data(Picarro_sql_tablename,date1,date2,spikes_or_all,split_or_concat,i)
-                else:
-                    dict_of_dfs['Picarro_ANEM'] = get_picarro_data(Picarro_sql_tablename,date1,date2,spikes_or_all,split_or_concat,i)
-    except ValueError:
-        dict_of_dfs['Picarro'] = pd.DataFrame() #make empty dataframe
-        pass
+    #print('Retrieving Picarro data')
+    #try:
+    #    if split_or_concat == 'concat':
+    #        dict_of_dfs['Picarro'] = get_picarro_data(Picarro_sql_tablename,date1,date2,spikes_or_all,split_or_concat,0)
+    #    if split_or_concat == 'split':
+    #        for i in range(0,2):
+    #            if i == 0 :
+    #                dict_of_dfs['Picarro_CO2'] = get_picarro_data(Picarro_sql_tablename,date1,date2,spikes_or_all,split_or_concat,i)
+    #            else:
+    #                dict_of_dfs['Picarro_ANEM'] = get_picarro_data(Picarro_sql_tablename,date1,date2,spikes_or_all,split_or_concat,i)
+    #except ValueError:
+    #    dict_of_dfs['Picarro'] = pd.DataFrame() #make empty dataframe
+    #    pass
     
     #Import WBB_weather data
     #If there is a value error (no data in table for date range), set up an empty dataframe and pass the error
@@ -537,13 +537,13 @@ def get_single_pic_co2_spikes(df):
     import pandas as pd
     
     df = df.reset_index(drop=True)
-    y_ax = 'CO2'
+    y_ax = 'Pic_CO2'
 
     simple_plot(df,'Local_DT',y_ax)
 
 
     threshold = float(input("Enter the threshold value which all spikes go above: "))
-    spike_ixs = np.where(df['CO2']>=threshold)[0]
+    spike_ixs = np.where(df[y_ax]>=threshold)[0]
 
     num_spikes = 0
     spike_start = []
@@ -567,10 +567,10 @@ def get_single_pic_co2_spikes(df):
 
     st_spike_idx = []
     for i in range(0,len(df_list)):
-        co2_diff = df_list[i]['CO2'][spikes['Start'][i]] - df_list[i]['CO2'][spikes['Start'][i]-1]
+        co2_diff = df_list[i][y_ax][spikes['Start'][i]] - df_list[i][y_ax][spikes['Start'][i]-1]
         st_spike_idx.append(spikes['Start'][i] - 1)
         while co2_diff > 1000:
-            co2_diff = df_list[i]['CO2'][st_spike_idx[i]] - df_list[i]['CO2'][st_spike_idx[i]-1]
+            co2_diff = df_list[i][y_ax][st_spike_idx[i]] - df_list[i][y_ax][st_spike_idx[i]-1]
             st_spike_idx[i] = st_spike_idx[i]-1
         st_spike_idx[i] += 1
 
@@ -582,8 +582,8 @@ def get_single_pic_co2_spikes(df):
 
             for i in range(0,len(spikes)):
                 ET.append(df['EPOCH_TIME'][st_spike_idx[i]])
-                CO2.append(df['CO2'][st_spike_idx[i]])
-            plot_spike_with_pts(df_list[j],ET[j],CO2[j],'CO2')
+                CO2.append(df[y_ax][st_spike_idx[i]])
+            plot_spike_with_pts(df_list[j],ET[j],CO2[j],y_ax)
 
             ask = input("Is the spike start in the correct spot?")
             if ask == 'y':
@@ -602,13 +602,13 @@ def get_single_LI_spike(df):
     import pandas as pd
     
     df = df.reset_index(drop=True) #reset index
-    y_ax = 'CO2' #looking at CO2 data
+    y_ax = 'LI_CO2' #looking at CO2 data
 
-    simple_plot(df,'Local_DT','CO2') #plot the data for reference
+    simple_plot(df,'Local_DT',y_ax) #plot the data for reference
     
     threshold = float(input("Enter the threshold value which all spikes go above: ")) #have the user input a threshold above which the spike goes
     
-    spike_ixs = np.where((df['CO2']>=threshold) | (df['CO2']<0))[0] #find the indidcies where CO2 value is above input threshold
+    spike_ixs = np.where((df[y_ax]>=threshold) | (df[y_ax]<0))[0] #find the indidcies where CO2 value is above input threshold
 
     num_spikes = 0
     spike_start = []
@@ -655,8 +655,8 @@ def get_single_LI_spike(df):
 
             for i in range(0,len(spikes)):
                 ET.append(df['EPOCH_TIME'][st_spike_idx[i]])
-                CO2.append(df['CO2'][st_spike_idx[i]])
-            plot_spike_with_pts(df_list[j],ET[j],CO2[j],'CO2')
+                CO2.append(df[y_ax][st_spike_idx[i]])
+            plot_spike_with_pts(df_list[j],ET[j],CO2[j],y_ax)
 
             ask = input("Is the spike start in the correct spot?")
             if ask == 'y':
@@ -759,6 +759,7 @@ def get_single_vent_anem_temp_spike(df,y_ax):
     import matplotlib.pyplot as plt
     from pandas.plotting import register_matplotlib_converters
     register_matplotlib_converters()
+    from datetime import datetime
     
     
     df = df.reset_index(drop=True)
@@ -815,15 +816,19 @@ def get_single_vent_anem_temp_spike(df,y_ax):
     ET.append(df['EPOCH_TIME'].loc[spike_ixs[0]]-sec_before) #Append the spike time. This is the spike start epoch time minus the seconds before as calculated above. 
                                                             # the reason this is subtracted is that the time on the arduino is recorded at the END of the averaging scheme
                                                             # meaning that the count recorded is the count between the previous time and the time recorded for that count
-            
+    x_line = datetime.fromtimestamp(ET[0])    
+        
     fig,ax = plt.subplots() #make the fig,ax
     ax.yaxis.grid(which="major") #plot horizontal gridlines
-    ax.plot(df['EPOCH_TIME'],df[y_ax]) #plot
-    ax.scatter(df['EPOCH_TIME'],df[y_ax],color='Black')
-    plt.axvline(x=ET[0],color='red')
+    ax.plot(df['Local_DT'],df[y_ax]) #plot
+    ax.scatter(df['Local_DT'],df[y_ax],color='Black')
+    plt.axvline(x=x_line,color='red')
+    plt.xlabel('Time')
+    plt.ylabel('Anemometer Rotations')
     plt.gcf().autofmt_xdate() #get a nice date format for the x axis
     fig.tight_layout()
     plt.show()
+    
     
     return ET
 
@@ -891,21 +896,21 @@ def append_real_DT(spike_ET_df,actual_spike_df):
 def create_actual_spike(actual_spike_df,**kwargs):    
     for key, value in kwargs.items():
         if 'CO2' in key :
-            Picarro_clip = plot_refinement_all([[value,'Local_DT','CO2']])[0]
+            Picarro_clip = plot_refinement_all([[value,'Local_DT','Pic_CO2']],'separate')[0]
             spike_ET_df = spike_ET_df_creation(Picarro_CO2_df = Picarro_clip)       
         elif 'ANEM' in key:
-            Picarro_clip = plot_refinement_all([[value,'Local_DT','ANEM_Y']])[0]
+            Picarro_clip = plot_refinement_all([[value,'Local_DT','ANEM_Y']],'separate')[0]
             spike_ET_df = spike_ET_df_creation(Picarro_ANEM_df = Picarro_clip)    
             print("2",spike_ET_df)
         elif 'vent' in key:
-            LI_vent_clip = plot_refinement_all([[value,'Local_DT','CO2']])[0]
+            LI_vent_clip = plot_refinement_all([[value,'Local_DT','LI_CO2']],'separate')[0]
             spike_ET_df = spike_ET_df_creation(LI_vent_df = LI_vent_clip)
         elif 'Multiplexer' in key:
-            Multiplexer_clip = plot_refinement_all([[value,'Local_DT','CO2_1'],[value,'Local_DT','CO2_3'],[value,'Local_DT','CO2_3']])[0]
+            Multiplexer_clip = plot_refinement_all([[value,'Local_DT','CO2_1'],[value,'Local_DT','CO2_3'],[value,'Local_DT','CO2_3']],'separate')[0]
             Multiplexer_clip = fill_multiplexer_gaps(Multiplexer_clip)
             spike_ET_df = spike_ET_df_creation(Multiplexer_df = Multiplexer_clip)
         elif 'Temp' in key:
-            Vent_Anem_Temp_clip = plot_refinement_all([[value,'Local_DT','Velocity']])[0]
+            Vent_Anem_Temp_clip = plot_refinement_all([[value,'Local_DT','Velocity']],'separate')[0]
             spike_ET_df = spike_ET_df_creation(Vent_Anem_Temp_df = Vent_Anem_Temp_clip)
         arg1 = append_real_DT(spike_ET_df,actual_spike_df)
     return arg1
@@ -1003,23 +1008,23 @@ def drift_correct(dict_of_dfs):
     data = dict_of_dfs.copy()
     spikes = pd.read_pickle('Spike_ETs.pkl')
     for key in data:
+        if data[key].empty:
+            print("{} is empty - no correction needed".format(key))
+            continue
         print('Correcting data for {}'.format(key))
-        if key == 'Multiplexer_Weather':
-            continue
-            data['Multiplexer_Weather'].drop_duplicates(['EPOCH_TIME'],inplace=True)
-            data['Multiplexer_Weather']['Corrected_ET'] = data['Multiplexer_CO2_2']['Corrected_ET'].values
-            data[key]['Corrected_ET'] = data['Multiplexer_Weather'].apply(lambda row: row['Corrected_ET'] - 2,axis=1)
-            data[key]['Corrected_DT'] = data['Multiplexer_Weather']['Corrected_ET'].apply(lambda x: datetime.fromtimestamp(x))
-            continue
-        elif (key == 'WBB_CO2')|(key=='WBB_Weather'):
+
+        if (key == 'WBB_CO2')|(key=='WBB_Weather'):
             continue
         lags = get_lag_groups(spikes,key)
         data[key] = df_correction_lag_slope(lags,data[key])
-    data['Multiplexer_Weather'] = data['Multiplexer_CO2_3'][['EPOCH_TIME','Local_DT','Rotations','Wind_Velocity','Wind_Direction','Corrected_ET']]
-    data['Multiplexer_Weather']['Corrected_ET'] = data['Multiplexer_Weather'].apply(lambda row: row['Corrected_ET']-2,axis=1)
-    data['Multiplexer_Weather']['Corrected_DT'] = data['Multiplexer_Weather']['Corrected_ET'].apply(lambda row: datetime.fromtimestamp(row))
     
-    data['Multiplexer_CO2_3'].drop(['Rotations','Wind_Velocity','Wind_Direction'],axis=1,inplace=True)
+    if 'Multiplexer_CO2_3' in data.keys():
+        data['Multiplexer_Weather'] = data['Multiplexer_CO2_3'][['EPOCH_TIME','Local_DT','Rotations','Wind_Velocity','Wind_Direction','Corrected_ET']]
+        data['Multiplexer_Weather']['Corrected_ET'] = data['Multiplexer_Weather'].apply(lambda row: row['Corrected_ET']-2,axis=1)
+        data['Multiplexer_Weather']['Corrected_DT'] = data['Multiplexer_Weather']['Corrected_ET'].apply(lambda row: datetime.fromtimestamp(row))
+        
+        data['Multiplexer_CO2_3'].drop(['Rotations','Wind_Velocity','Wind_Direction'],axis=1,inplace=True)
+    
     return data
 #==============================================================================================================#
 def delete_WBB_cal(df_to_corr):
@@ -1061,79 +1066,7 @@ def delete_WBB_cal(df_to_corr):
         new_df = new_df.loc[(new_df['EPOCH_TIME']<(df['Starts'].iloc[i]-120))|(new_df['EPOCH_TIME']>(df['Ends'].iloc[i]+120))]
 
     return new_df
-#==============================================================================================================#
-def remove_spikes(spike_df,dict_of_dfs):
-    import pandas as pd
-    
-    data = dict_of_dfs.copy()
-    for key in data:
-        if key == 'WBB_Weather':
-            continue
-        elif key == 'WBB_CO2':
-            data[key] = delete_WBB_cal(data[key])
-            continue
-        elif key == 'Multiplexer_Weather':
-            key = 'Multiplexer_CO2_1'
-        df = get_grouped_spike_list(spike_df,key)
-        starts = []
-        ends = [] 
-        for i in range(0,len(df)):
-            starts.append(df[i]['Actual_ET'].iloc[0])
-            ends.append(df[i]['Actual_ET'].iloc[-1])
-            
-        df = pd.DataFrame({'Starts':starts,'Ends':ends})
-        beg = data[key]['Corrected_ET'].iloc[0]
-        end = data[key]['Corrected_ET'].iloc[-1]
-        
-        df = df.loc[(df['Starts']>beg)&(df['Ends']<end)]
-        
-        new_df = data[key]
-        for i in range(0,len(df)):
-            new_df = new_df.loc[(new_df['Corrected_ET']<(df['Starts'].iloc[i]-120))|(new_df['Corrected_ET']>(df['Ends'].iloc[i]+120))]
-        
-        data[key]=new_df
-        
-    return data
-#==============================================================================================================#
-def delete_WBB_cal(df_to_corr):
-    import pandas as pd
-    z = df_to_corr.where(df_to_corr['WBB_CO2']<10).dropna()
 
-    z['diff'] = z['EPOCH_TIME']-z['EPOCH_TIME'].shift(1)
-    z.reset_index(drop=True,inplace=True)
-
-    grp = int(0)
-    df_list = {}
-    st_ix = 0
-    end_ix = 0
-
-    for i in range(1,len(z)):
-        if z.loc[i,'diff'] < 1000:
-            end_ix += 1
-        else:
-            df_list[grp] = pd.DataFrame(z.loc[st_ix:end_ix])
-            grp+=1
-            end_ix += 1
-            st_ix = end_ix
-    df_list[grp] = pd.DataFrame(z.loc[st_ix:end_ix])
-    
-    starts = []
-    ends = [] 
-    for i in range(0,len(df_list)):
-        starts.append(df_list[i]['EPOCH_TIME'].iloc[0])
-        ends.append(df_list[i]['EPOCH_TIME'].iloc[-1])
-
-    df = pd.DataFrame({'Starts':starts,'Ends':ends})
-    beg = df_to_corr['EPOCH_TIME'].iloc[0]
-    end = df_to_corr['EPOCH_TIME'].iloc[-1]
-
-    df = df.loc[(df['Starts']>beg)&(df['Ends']<end)]
-
-    new_df = df_to_corr
-    for i in range(0,len(df)):
-        new_df = new_df.loc[(new_df['EPOCH_TIME']<(df['Starts'].iloc[i]-120))|(new_df['EPOCH_TIME']>(df['Ends'].iloc[i]+120))]
-
-    return new_df
 #==============================================================================================================#
 def get_grouped_spike_list(spike_df,key):
     
@@ -1329,9 +1262,12 @@ def full_download_process():
     data = get_sql_data("Aug2019_LI_8100_Vent",\
                   "Aug2019_Multiplexer","Aug2019_Vent_Anem_Temp",\
                   "Aug2019_Picarro",date1,date2,'all','split') #fetch data from four instruments between dates
+    
     data = drift_correct(data) #correct drifts
     for key in data:
         data[key].reset_index(drop=True,inplace=True) #reset indecies (get added for some reason)
+        
+        
     #data = remove_spikes(pd.read_pickle('Spike_ETs.pkl'),data) #remove the spikes so they don't skew the data
     #for key in data:
     #    data[key]['DOW'] = data[key]['Corrected_DT'].dt.dayofweek
