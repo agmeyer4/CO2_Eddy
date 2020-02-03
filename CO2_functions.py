@@ -7,7 +7,6 @@ This is a temporary script file.
 #=========================================================================================================#
 def get_date_range():
     #Ask the user for a date range and return the results
-    print("helloworld")
     date1=input("Enter Start Date YYYY-mm-DD: ")
     date2=input("Enter End Date YYYY-mm-DD: ") 
     return date1,date2
@@ -1272,4 +1271,46 @@ def full_download_process():
     #for key in data:
     #    data[key]['DOW'] = data[key]['Corrected_DT'].dt.dayofweek
 
+    return data
+
+#==============================================================================================================#
+
+
+def daterange(start_date, end_date):
+    from datetime import timedelta, datetime
+    start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+    end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+    for n in range(int ((end_date - start_date).days)+1):
+        yield (start_date + timedelta(n)).strftime("%Y-%m-%d")
+
+
+#==============================================================================================================#
+  
+def retrieve_data_from_folder(data_path):
+    import pickle
+    import os
+    import pandas as pd 
+    
+    start_date,end_date = get_date_range()
+    if start_date == 'all':
+        start_date = '2019-08-15'
+        end_date = '2019-11-27'
+    
+    first_go = True
+    for single_date in daterange(start_date, end_date):
+        if os.path.exists("{}/{}.pickle".format(data_path,single_date)):
+            print("Retrieving data for {}".format(single_date))
+            if first_go:
+                with open('{}/{}.pickle'.format(data_path,single_date), 'rb') as handle:
+                    data = pickle.load(handle)
+                first_go=False
+            else:
+                with open('{}/{}.pickle'.format(data_path,single_date), 'rb') as handle:
+                    new_data = pickle.load(handle)
+                for key in data:
+                    if key in new_data.keys():
+                        data[key] = pd.concat([data[key],new_data[key]])
+        else: 
+            print("No data found for {}".format(single_date))
+            continue
     return data
