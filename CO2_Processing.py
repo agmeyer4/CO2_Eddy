@@ -9,9 +9,10 @@ def downsample_and_concatenate(dict_of_df):
     return_data = {}
     return_data['Picarro'] = concat_pic(data)
 
-    #return_data['Multi'] = concat_multi(data)
+    return_data['Multi'] = concat_multi(data)
     return_data['LI'] = data['LI_Vent'].drop(['EPOCH_TIME','Corrected_ET'],axis=1).set_index('Corrected_DT',drop=False).resample('1S').mean()
     
+    data['Vent_Anem_Temp']['DOW'] = data['Vent_Anem_Temp']['Corrected_DT'].dt.dayofweek
     data['Vent_Anem_Temp'] = set_vent_zeros(data['Vent_Anem_Temp'])
     return_data['Vent'] = data['Vent_Anem_Temp'].drop(['EPOCH_TIME','Corrected_ET'],axis=1).set_index('Corrected_DT').resample('10S').mean()
     return_data['Vent'].interpolate(limit=1,inplace=True)
@@ -19,8 +20,9 @@ def downsample_and_concatenate(dict_of_df):
     
     return_data['WBB_CO2'] = data['WBB_CO2'].set_index('Corrected_DT').resample('10S').mean()
     return_data['WBB_Weather'] = data['WBB_Weather'].set_index('Corrected_DT').resample('T').mean()
-    # for key in return_data:
-    #     return_data[key].reset_index(drop=False,inplace=True)
+    for key in return_data:
+        return_data[key]['DOW'] = return_data[key].index.dayofweek
+
     return return_data
 
 #==============================================================================================================#
@@ -50,12 +52,13 @@ def concat_multi(data_dict):
     ######################################################################
     import pandas as pd
     print("Concatenating Multi Data")
-    Multi1_resample = data_dict['Multiplexer_CO2_1'].drop(['EPOCH_TIME','Corrected_ET','DOW'],axis=1).set_index('Corrected_DT',drop=False).resample('1S').mean() #resample from corrected data
-    Multi2_resample = data_dict['Multiplexer_CO2_2'].drop(['EPOCH_TIME','Corrected_ET','Multi_Loc','DOW'],axis=1).set_index('Corrected_DT',drop=False).resample('1S').mean()#resample from corrected data
-    Multi3_resample = data_dict['Multiplexer_CO2_3'].drop(['EPOCH_TIME','Corrected_ET','Multi_Loc','DOW'],axis=1).set_index('Corrected_DT',drop=False).resample('1S').mean()#resample from corrected data
-    MultiWeather_resample = data_dict['Multiplexer_Weather'].drop(['EPOCH_TIME','Corrected_ET','DOW'],axis=1).set_index('Corrected_DT',drop=False).resample('1S').mean()#resample from corrected data
+    Multi1_resample = data_dict['Multiplexer_CO2_1'].drop(['EPOCH_TIME','Corrected_ET'],axis=1).set_index('Corrected_DT',drop=False).resample('1S').mean() #resample from corrected data
+    Multi2_resample = data_dict['Multiplexer_CO2_2'].drop(['EPOCH_TIME','Corrected_ET','Multi_Loc'],axis=1).set_index('Corrected_DT',drop=False).resample('1S').mean()#resample from corrected data
+    Multi3_resample = data_dict['Multiplexer_CO2_3'].drop(['EPOCH_TIME','Corrected_ET','Multi_Loc'],axis=1).set_index('Corrected_DT',drop=False).resample('1S').mean()#resample from corrected data
+    MultiWeather_resample = data_dict['Multiplexer_Weather'].drop(['EPOCH_TIME','Corrected_ET'],axis=1).set_index('Corrected_DT',drop=False).resample('1S').mean()#resample from corrected data
     concat = pd.concat([Multi1_resample,Multi2_resample,Multi3_resample,MultiWeather_resample],axis=1)#concatenate and return
-    concat['DOW'] = concat.Datetimeindex.dayofweek
+    #concat['DOW'] = concat.Datetimeindex.dayofweek
+    
     return concat
 #==============================================================================================================#
 def find_timesteps(df):
