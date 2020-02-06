@@ -1026,8 +1026,9 @@ def drift_correct(dict_of_dfs):
     
     return data
 #==============================================================================================================#
-def delete_WBB_cal(df_to_corr):
+def delete_WBB_cal(df):
     import pandas as pd
+    df_to_corr = df.copy()
     z = df_to_corr.where(df_to_corr['WBB_CO2']<10).dropna()
 
     z['diff'] = z['EPOCH_TIME']-z['EPOCH_TIME'].shift(1)
@@ -1134,7 +1135,21 @@ def wind_add(df,x_lab,y_lab):
     print("Adding Wind Speed as 'ws'")
     df['ws'] = np.sqrt(df[x_lab]**2+df[x_lab]**2) #add the 2d wind speed
     return df
-
+#==============================================================================================================#
+def multi_direction_correction(df):
+    import numpy as np
+    data = df.copy()
+    def add_360(angle):
+        if angle < 0:
+            result = angle+360
+        else:
+            result = angle
+        return result
+    
+    add = np.vectorize(add_360)
+    data['Wind_Direction'] = data['Wind_Direction'] - 90
+    data['Wind_Direction'] = add(data['Wind_Direction'])
+    return data
 #==============================================================================================================#
 
 def polar_plot(df,pollutant):
@@ -1285,7 +1300,41 @@ def daterange(start_date, end_date):
 
 
 #==============================================================================================================#
-  
+def remove_spikes(spike_df,data_dict):
+    import pandas as pd
+    data = data_dict.copy()
+
+    for key in data:
+        if key == 'WBB_Weather':
+            continue
+        elif key == 'WBB_CO2':
+            data[key] = delete_WBB_cal(data[key])
+            continue
+        elif key == 'Multiplexer_Weather':
+            key = 'Multiplexer_CO2_1'
+        df = get_grouped_spike_list(spike_df,key)
+        starts = []
+        ends = [] 
+        for i in range(0,len(df)):
+            starts.append(df[i]['Actual_ET'].iloc[0])
+            ends.append(df[i]['Actual_ET'].iloc[-1])
+
+        df = pd.DataFrame({'Starts':starts,'Ends':ends})
+        beg = data[key]['Corrected_ET'].iloc[0]
+        end = data[key]['Corrected_ET'].iloc[-1]
+
+        df = df.loc[(df['Starts']>beg)&(df['Ends']<end)]
+
+        new_df = data[key]
+        for i in range(0,len(df)):
+            new_df = new_df.loc[(new_df['Corrected_ET']<(df['Starts'].iloc[i]-120))|(new_df['Corrected_ET']>(df['Ends'].iloc[i]+120))]
+
+        data[key]=new_df
+
+    return data
+    
+    #==============================================================================================================#
+
 def retrieve_data_from_folder(data_path):
     import pickle
     import os
@@ -1312,5 +1361,6 @@ def retrieve_data_from_folder(data_path):
                         data[key] = pd.concat([data[key],new_data[key]])
         else: 
             print("No data found for {}".format(single_date))
+            print(os.listdir(data_path))
             continue
     return data
