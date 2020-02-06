@@ -1131,7 +1131,10 @@ def wind_add(df,x_lab,y_lab):
     import numpy as np
     print("Adding Wind Direction as 'wd'")
     wd_vec = np.vectorize(wind_dir) #vectorize the wind direction function
-    df['wd'] = wd_vec(df[x_lab],df[y_lab],df['Pic_Loc']) #add the 2d wind direction
+    if 'Pic_Loc' in df.columns:
+        df['wd'] = wd_vec(df[x_lab],df[y_lab],df['Pic_Loc']) #add the 2d wind direction
+    else:
+        df['wd'] = wd_vec(df[x_lab],df[y_lab],1)
     print("Adding Wind Speed as 'ws'")
     df['ws'] = np.sqrt(df[x_lab]**2+df[x_lab]**2) #add the 2d wind speed
     return df
