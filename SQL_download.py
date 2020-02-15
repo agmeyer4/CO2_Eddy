@@ -276,8 +276,7 @@ def get_sql_data(LI_vent_sql_tablename,Multiplexer_sql_tablename,\
         else: 
             raise KeyError('Input "split" or "concat" as the last argument')
     except ValueError:
-        for i in range(1,4):
-                dict_of_dfs['Multiplexer_CO2_{}'.format(i)] = pd.DataFrame()
+        dict_of_dfs['Multiplexer'] = pd.DataFrame() #make empty dataframe
         pass
     
     #Import Vent_Anem_Temp data
@@ -303,11 +302,7 @@ def get_sql_data(LI_vent_sql_tablename,Multiplexer_sql_tablename,\
                 else:
                     dict_of_dfs['Picarro_ANEM'] = get_picarro_data(Picarro_sql_tablename,date1,date2,spikes_or_all,split_or_concat,i)
     except ValueError:
-        for i in range(0,2):
-                if i == 0 :
-                    dict_of_dfs['Picarro_CO2'] = pd.DataFrame()
-                else:
-                    dict_of_dfs['Picarro_ANEM'] = pd.DataFrame()
+        dict_of_dfs['Picarro'] = pd.DataFrame() #make empty dataframe
         pass
     
     #Import WBB_weather data
@@ -463,4 +458,4 @@ def download_and_save_daily(start_date,end_date):
 #=========================================================================================================#
 
 
-download_and_save_daily('2019-08-14','2019-08-15')
+download_and_save_daily('2019-10-15','2019-10-16')
