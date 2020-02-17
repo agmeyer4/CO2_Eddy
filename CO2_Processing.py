@@ -7,9 +7,13 @@ Created on Wed Jan  8 13:10:24 2020
 def downsample_and_concatenate(dict_of_df):
     data = dict_of_df.copy() #hello
     return_data = {}
-    return_data['Picarro'] = concat_pic(data)
+    if not data['Picarro_CO2'].empty:
+        return_data['Picarro'] = concat_pic(data)
 
-    return_data['Multi'] = concat_multi(data)
+    if not data['Multiplexer_CO2_1'].empty:
+        return_data['Multi'] = concat_multi(data)
+        
+
     return_data['LI'] = data['LI_Vent'].drop(['EPOCH_TIME','Corrected_ET'],axis=1).set_index('Corrected_DT',drop=False).resample('1S').mean()
     
     data['Vent_Anem_Temp']['DOW'] = data['Vent_Anem_Temp']['Corrected_DT'].dt.dayofweek
@@ -75,12 +79,16 @@ def moving_average(df,time_window):
     data = df.copy()
     t_step = find_timesteps(data)
     roll_num = int(time_window//t_step)
+    print("Applying a central moving average of {} seconds".format(time_window))
+    
     if 'Corrected_DT' in data.columns:
         data.set_index('Corrected_DT',inplace=True)
     return data.rolling(roll_num,center=True).mean()
 #==============================================================================================================#
 def dwn_sample(df,time_window):
     data = df.copy()
+    print("Downsampling by mean at {} seconds".format(time_window))
+
     if 'Corrected_DT' in data.columns:
         result = data.set_index('Corrected_DT').resample('{}S'.format(time_window)).mean() 
     else :
@@ -95,10 +103,20 @@ def pre_ds_filter(filter_func,dict_of_dfs):
             data[key] = filter_func(data[key],time_window)
     return data
 #==============================================================================================================#
-def combine_vent_data(dict_of_dfs):
+def combine_vent_data(dict_of_dfs,sample_rate):
     import pandas as pd
     data = dict_of_dfs.copy()
-    data['Vent_Mass'] = pd.concat([dwn_sample(data['LI'],10),data['Vent'].drop('DOW',axis=1),data['WBB_CO2'].drop(['EPOCH_TIME'],axis=1)],axis=1)
+    
+    if sample_rate < 1:
+        raise ValueError('Cannot sample below 1 second, as LI data is at this rate')
+    elif sample_rate == 1:
+        data['Vent_Mass'] = pd.concat([data['LI'],data['Vent'].drop('DOW',axis=1).resample('{}S'.format(sample_rate)).interpolate(limit=10),data['WBB_CO2'].drop(['EPOCH_TIME'],axis=1).resample('{}S'.format(sample_rate)).interpolate(limit=10)],axis=1)
+    elif sample_rate < 10:
+        data['Vent_Mass'] = pd.concat([data['LI'].resample('{}S'.format(sample_rate)).mean(),data['Vent'].drop('DOW',axis=1).resample('{}S'.format(sample_rate)).interpolate(),data['WBB_CO2'].drop(['EPOCH_TIME'],axis=1).resample('{}S'.format(sample_rate)).interpolate()],axis=1) 
+    else:
+        data['Vent_Mass'] = pd.concat([data['LI'].resample('{}S'.format(sample_rate)).mean(),data['Vent'].drop('DOW',axis=1).resample('{}S'.format(sample_rate)).mean(),data['WBB_CO2'].drop(['EPOCH_TIME'],axis=1).resample('{}S'.format(sample_rate)).mean()],axis=1) 
+
+        
     data['Vent_Mass']['Q'] = float('NaN')
     data['Vent_Mass'].loc[data['Vent_Mass']['Velocity']>0.0,['Q']]=5.77
     data['Vent_Mass'].loc[data['Vent_Mass']['Velocity']==0.0,['Q']]=0.0
@@ -122,3 +140,24 @@ def moving_mass_flow(concat_df):
     df['m_dot'] = df.apply(lambda row: 0.0 if row['Q'] == 0.0 else row['Q']*row['C_m'],axis=1)
     df.drop(['C_m'],axis=1,inplace=True)
     return df
+#==============================================================================================================#
+
+def sept24_26_correction(data):
+    import numpy as np
+    import pandas as pd
+    cdt = ['2019-09-24 08:57:00','2019-09-24 08:57:10','2019-09-24 19:35:00','2019-09-24 19:35:10','2019-09-25 08:46:00','2019-09-25 08:46:10','2019-09-25 18:47:00',\
+           '2019-09-25 18:47:10','2019-09-26 08:00:00']
+    r = [0,100,100,0,0,100,100,0,0]
+    v = [0,12,12,0,0,12,12,0,0]
+    t1 = np.zeros(len(cdt))
+    t2 = np.zeros(len(cdt))
+    d = np.zeros(len(cdt))
+
+    app = pd.DataFrame({'Corrected_DT':cdt,'Rotations':r,'Velocity':v,'Temp_1':t1,'Temp_2':t2,'DOW':d})
+    app['Corrected_DT'] = pd.to_datetime(app['Corrected_DT'])
+    app.set_index('Corrected_DT',inplace=True)
+
+    app = app.resample('10S').mean().interpolate()
+
+    data['Vent'] = pd.concat([app,data['Vent']])
+    return data
