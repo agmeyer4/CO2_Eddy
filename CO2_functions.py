@@ -1308,6 +1308,8 @@ def remove_spikes(spike_df,data_dict):
     data = data_dict.copy()
 
     for key in data:
+        if data[key].empty:
+            continue
         if key == 'WBB_Weather':
             continue
         elif key == 'WBB_CO2':
@@ -1338,12 +1340,12 @@ def remove_spikes(spike_df,data_dict):
     
     #==============================================================================================================#
 
-def retrieve_data_from_folder(data_path):
+def retrieve_data_from_folder(data_path,start_date,end_date):
     import pickle
     import os
     import pandas as pd 
     
-    start_date,end_date = get_date_range()
+    
     if start_date == 'all':
         start_date = '2019-08-15'
         end_date = '2019-11-27'
