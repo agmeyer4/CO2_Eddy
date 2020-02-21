@@ -20,21 +20,22 @@ from sklearn.model_selection import GridSearchCV
 from keras.models import Sequential
 from keras.layers import Dense, LSTM, Dropout
 
-from CO2_Processing import *
-X_train,X_test,y_train,y_test = process_for_ML_test()
+print('Retrieving and processing data')
+X_train,X_test,y_train,y_test = process_for_ML_test(['Pic_CO2','ANEM_X','ANEM_Y','ANEM_Z','wd','ws'],10)
 
+print('building and fitting model')
 model = Sequential()
 model.add(LSTM(128,activation='relu'))
 model.add(Dropout(0.2))
 model.add(Dense(1))
 opt = tf.keras.optimizers.Adam(lr=1e-3,decay=1e-5)
 model.compile(loss='mse',optimizer=opt,metrics=['accuracy'])
-model.fit(X_train,y_train,epochs=10,batch_size=20,validation_data=(X_test,y_test),verbose=0)
-
+model.fit(X_train,y_train,epochs=10,batch_size=20,validation_data=(X_test,y_test),verbose=1)
+print('model fit complete')
 
 from keras.models import model_from_json
 model_json = model.to_json()
-with open("ML_Models/model1.json", "w") as json_file:
+with open("ML_Models/model2.json", "w") as json_file:
     json_file.write(model_json)
-model.save_weights("ML_Models/model1.h5")
+model.save_weights("ML_Models/model2.h5")
 print("Saved model to disk")

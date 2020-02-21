@@ -26,14 +26,19 @@ def create_model():
     return model
 
 X_train,X_test,y_train,y_test = process_for_ML_test()
+print("Train test data prepared for gridsearch")
 
 model = KerasClassifier(build_fn=create_model,verbose=10)
 
-batch_size = [5,10,20,50,100]
-epochs = [1,5,10,20,50]
+batch_size = [5,10,20]
+epochs = [1,5,10]
+
+print("Batch sizes to test: {}".format(batch_size))
+print("Epochs to test: {}".format(epochs))
+
 
 param_grid = dict(batch_size=batch_size, epochs=epochs)
-grid = GridSearchCV(estimator=model, param_grid=param_grid, n_jobs=-1, cv=3,verbose=10)
+grid = GridSearchCV(estimator=model, param_grid=param_grid, n_jobs=1, cv=3,verbose=10)
 grid_result = grid.fit(X_train, y_train,verbose=False)
 
 print("Best: %f using %s" % (grid_result.best_score_, grid_result.best_params_))
