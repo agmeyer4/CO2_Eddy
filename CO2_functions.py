@@ -1332,7 +1332,7 @@ def remove_spikes(spike_df,data_dict):
 
         new_df = data[key]
         for i in range(0,len(df)):
-            new_df = new_df.loc[(new_df['Corrected_ET']<(df['Starts'].iloc[i]-120))|(new_df['Corrected_ET']>(df['Ends'].iloc[i]+120))]
+            new_df = new_df.loc[(new_df['Corrected_ET']<(df['Starts'].iloc[i]-180))|(new_df['Corrected_ET']>(df['Ends'].iloc[i]+180))]
 
         data[key]=new_df
 
