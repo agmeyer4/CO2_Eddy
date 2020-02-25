@@ -118,7 +118,7 @@ def combine_vent_data(dict_of_dfs,sample_rate):
 
         
     data['Vent_Mass']['Q'] = float('NaN')
-    data['Vent_Mass'].loc[data['Vent_Mass']['Velocity']>0.0,['Q']]=5.77
+    data['Vent_Mass'].loc[data['Vent_Mass']['Velocity']>0.0,['Q']]=2.5
     data['Vent_Mass'].loc[data['Vent_Mass']['Velocity']==0.0,['Q']]=0.0
     del data['Vent']
     del data['LI']
@@ -210,9 +210,9 @@ def delete_unwanted_cols(initial_lagged_df):
     s = "m_dot" 
     drop_cols = [] #initialize columns to be dropped
     for column in initial_lagged_df:
-        if s not in column and "(t)" in column:
-            drop_cols.append(column)     #Drop all columns except the LI_CO2 column at time t (only want the lagged variables)
-        elif s in column and "(t)" not in column:
+#         if s not in column and "(t)" in column:
+#             drop_cols.append(column)     #Drop all columns except the LI_CO2 column at time t (only want the lagged variables)
+        if s in column and "(t)" not in column:
             drop_cols.append(column)     #Drop all columns with LI_CO2 that arent the last one
     return initial_lagged_df.drop(drop_cols,axis = 1)  
 
@@ -222,7 +222,7 @@ def delete_unwanted_cols(initial_lagged_df):
 
 
 
-def process_for_ML_test(cols,lag_secs):
+def process_for_ML_test(cols,lag_secs,pn):
     import tensorflow as tf
     from tensorflow import keras
     import CO2_functions
@@ -237,19 +237,37 @@ def process_for_ML_test(cols,lag_secs):
     from keras.models import Sequential
     from keras.layers import Dense, LSTM, Dropout
     
-    #Get the data from CHPC
-    data_orig = retrieve_data_from_folder('../CO2_Data_Final','2019-09-24','2019-10-03')
-    data = remove_spikes(pd.read_pickle('Spike_ETs.pkl'),data_orig) #remove impulses to prevent skew
-    data = downsample_and_concatenate(data) #sample each instrument to its respective sampling rate such that everything is equally sampled after correcting DT
-    data = sept24_26_correction(data) #add vent vel when not monitored (instrument off)
-    data = combine_vent_data(data,1) #Combine LI_Vent and Vent_Anem_Temp into a single df by sampling rate 
-    data['Vent_Mass'] = moving_mass_flow(data['Vent_Mass']) #Add the moving mass flow rate based on function developed. 
+    
+    print("position number = {}".format(pn))
+    if pn == 4:
+        #Get the data from CHPC
+        data_orig = retrieve_data_from_folder('../CO2_Data_Final','2019-09-24','2019-10-03')
+        print("Removing Impulses")
+        data = remove_spikes(pd.read_pickle('Spike_ETs.pkl'),data_orig) #remove impulses to prevent skew
+        data = downsample_and_concatenate(data) #sample each instrument to its respective sampling rate such that everything is equally sampled after correcting DT
+        print("Correcting data from sept 24-26")
+        data = sept24_26_correction(data) #add vent vel when not monitored (instrument off)
+        data = combine_vent_data(data,1) #Combine LI_Vent and Vent_Anem_Temp into a single df by sampling rate 
+        data['Vent_Mass'] = moving_mass_flow(data['Vent_Mass']) #Add the moving mass flow rate based on function developed. 
+        data['Vent_Mass'] = pd.concat([\
+                                   data['Vent_Mass'].loc[(data['Vent_Mass'].index>'2019-09-24 08:57:00')&(data['Vent_Mass'].index<'2019-09-26 08:00:00')],\
+                                   data['Vent_Mass'].loc[(data['Vent_Mass'].index>'2019-09-26 12:00:00')&(data['Vent_Mass'].index<'2019-10-03 13:00:00')].interpolate()])
+    elif pn == 6:
+        #Processing for position 6
+        data_orig = retrieve_data_from_folder('../CO2_Data_Final','2019-11-06','2019-11-27')
+        data = remove_spikes(pd.read_pickle('Spike_ETs.pkl'),data_orig) #remove impulses to prevent skew
+        data = downsample_and_concatenate(data) #sample each instrument to its respective sampling rate such that everything is equally sampled after correcting DT
+        data = combine_vent_data(data,1) #Combine LI_Vent and Vent_Anem_Temp into a single df by sampling rate 
+        data['Vent_Mass'] = moving_mass_flow(data['Vent_Mass']) #Add the moving mass flow rate based on function developed. 
+        for key in data:
+            data[key] = pd.concat([\
+                                       data[key].loc[(data[key].index>'2019-11-06 00:00:00')&(data[key].index<'2019-11-25 12:00:00')],\
+                                       data[key].loc[(data[key].index>'2019-11-25 17:00:00')&(data[key].index<'2019-11-27 10:28:00')]])
 
 
-    data['Vent_Mass'] = pd.concat([\
-                               data['Vent_Mass'].loc[(data['Vent_Mass'].index>'2019-09-24 08:57:00')&(data['Vent_Mass'].index<'2019-09-26 08:00:00')],\
-                               data['Vent_Mass'].loc[(data['Vent_Mass'].index>'2019-09-26 12:00:00')&(data['Vent_Mass'].index<'2019-10-03 13:00:00')].interpolate()])
-
+    
+    
+    
     pic = data['Picarro']
     vent=data['Vent_Mass']
 
@@ -264,43 +282,48 @@ def process_for_ML_test(cols,lag_secs):
     if 'm_dot' not in cols:
         cols.append('m_dot')
     df = df[cols]
-
+    
     #Make mass flux the last column
     loc = df.columns.get_loc('m_dot')
-
     cols = df.columns.tolist()
     cols = cols[0:loc]+cols[(loc+1):]+[cols[loc]]
     df = df[cols]
+    
 
     #TIME LAG
     df_to_use = df
 
-    n_seconds = lag_secs #how many periods to lag
+    n_seconds = 10 #how many periods to lag
     n_features= len(df_to_use.columns)-1 #how many features exist in the feature matrix (number of cols - target col)
-    time_lagged = series_to_supervised(df_to_use,n_in=0,n_out=n_seconds) #lag function
+    time_lagged = series_to_supervised(df_to_use,n_in=0,n_out=n_seconds,dropnan=False) #lag function
     time_lagged_reframed = delete_unwanted_cols(time_lagged) #delete unneccesary columns
-    cols = list(time_lagged_reframed.columns)
-    cols = cols[1:] + [cols[0]]
+
+
+    #Make mass flux at t the last column
+    loc = time_lagged_reframed.columns.get_loc('m_dot(t)')
+    cols = time_lagged_reframed.columns.tolist()
+    cols = cols[0:loc]+cols[(loc+1):]+[cols[loc]]
     time_lagged_reframed = time_lagged_reframed[cols]
-
-
+    print("columns fed to numpy: ",time_lagged_reframed.columns)
+    
+    
     values = time_lagged_reframed.dropna().values #Convert to numpy for processing
     min_max_scalar = preprocessing.MinMaxScaler() #setup scaling
     values_scaled = min_max_scalar.fit_transform(values) #scale all values from 0 to 1
 
-
     #Set train size. Because time is a factor, we do not choose randomly, but chronologically
     percent_train = 0.6
-    train_size = int(len(df)*percent_train) 
-
+    print("Train/test split: {}%".format(percent_train*100))
+    train_size = int(len(values)*percent_train) 
     train = values_scaled[:train_size,:]  #Get train/test arrays
     test = values_scaled[train_size:,:]
 
 
     X_train,y_train = train[:,:-1], train[:,-1] #Get feature/target arrays
     X_test, y_test = test[:,:-1], test[:,-1]
+    print("Shapes prior to 3d reshape: \nX_train = {}\nX_test = {}\ny_train = {}\ny_test = {}".format(X_train.shape,X_test.shape,y_train.shape,y_test.shape))
+    
+    X_train = X_train.reshape((X_train.shape[0], n_seconds, n_features)) 
+    X_test = X_test.reshape((X_test.shape[0], n_seconds, n_features))
 
-    X_train = X_train.reshape((X_train.shape[0], n_seconds-1, n_features)) 
-    X_test = X_test.reshape((X_test.shape[0], n_seconds-1, n_features))
-
-    return X_train,X_test,y_train,y_test
+    return X_train,X_test,y_train,y_test,min_max_scalar
