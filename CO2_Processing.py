@@ -133,6 +133,7 @@ def dwn_sample(df,time_window):
 #==============================================================================================================#
 def combine_vent_data(dict_of_dfs,sample_rate):
     import pandas as pd
+    print("Combining vent data")
     data = dict_of_dfs.copy()
     
     if sample_rate < 1:
@@ -155,6 +156,7 @@ def combine_vent_data(dict_of_dfs,sample_rate):
 
 def moving_mass_flow(concat_df):
     import pandas as pd
+    print("Adding Mass Flow")
     df = concat_df.copy()
     R = 8.3145
     P = 85194.46
@@ -173,6 +175,7 @@ def moving_mass_flow(concat_df):
 def sept24_26_correction(data):
     import numpy as np
     import pandas as pd
+    print("Applying vent corrections")
     cdt = ['2019-09-24 08:57:00','2019-09-24 08:57:10','2019-09-24 19:35:00','2019-09-24 19:35:10','2019-09-25 08:46:00','2019-09-25 08:46:10','2019-09-25 18:47:00',\
            '2019-09-25 18:47:10','2019-09-26 08:00:00']
     r = [0,100,100,0,0,100,100,0,0]
@@ -189,6 +192,143 @@ def sept24_26_correction(data):
 
     data['Vent'] = pd.concat([app,data['Vent']])
     return data
+#==============================================================================================================#
+def night_vel_zeroing(dt1,dt2):
+    import pandas as pd
+    import numpy as np
+    cdt = [dt1,dt2]
+    r = np.zeros(len(cdt))
+    v = np.zeros(len(cdt))
+    t1 = np.zeros(len(cdt))
+    t2 = np.zeros(len(cdt))
+    day = np.zeros(len(cdt))
+    d1 = pd.DataFrame({'Corrected_DT':cdt,'Rotations':r,'Velocity':v,'Temp_1':t1,'Temp_2':t2,'DOW':day})
+    d1['Corrected_DT'] = pd.to_datetime(d1['Corrected_DT'])
+    d1.set_index('Corrected_DT',inplace=True)
+    d1 =d1.resample('10S').interpolate()
+    
+    return d1
+#==============================================================================================================#
+def aug15_21_correction(data):
+    import numpy as np
+    import pandas as pd
+    print("Applying vent corrections")
+    
+    data['Vent'] = data['Vent'].loc[data['Vent'].index < '2019-08-21 13:00:00'] #Delete anything after 13:00 (weird spike)
+    d = data['Vent'].loc[data['Vent'].index < '2019-08-15 20:00:00'] # First day
+
+    #build night df for setting zeros
+    cdt = ['2019-08-15 20:00:00','2019-08-15 20:00:10','2019-08-16 08:30:00']
+    r = np.zeros(len(cdt))
+    v = np.zeros(len(cdt))
+    t1 = np.zeros(len(cdt))
+    t2 = np.zeros(len(cdt))
+    day = np.zeros(len(cdt))
+    d1 = pd.DataFrame({'Corrected_DT':cdt,'Rotations':r,'Velocity':v,'Temp_1':t1,'Temp_2':t2,'DOW':day})
+    d1['Corrected_DT'] = pd.to_datetime(d1['Corrected_DT'])
+    d1.set_index('Corrected_DT',inplace=True)
+    d1 =d1.resample('10S').interpolate()
+
+    d = pd.concat([d,d1])
+
+    #Second Day
+    d1 = data['Vent'].loc[(data['Vent'].index > '2019-08-16 08:30:00')&(data['Vent'].index < '2019-08-16 20:00:10')]
+    d = pd.concat([d,d1])
+
+    #Builld night/weekend df
+    cdt = ['2019-08-16 20:00:00','2019-08-16 20:00:10','2019-08-19 08:38:00']
+    r = np.zeros(len(cdt))
+    v = np.zeros(len(cdt))
+    t1 = np.zeros(len(cdt))
+    t2 = np.zeros(len(cdt))
+    day = np.zeros(len(cdt))
+    d1 = pd.DataFrame({'Corrected_DT':cdt,'Rotations':r,'Velocity':v,'Temp_1':t1,'Temp_2':t2,'DOW':day})
+    d1['Corrected_DT'] = pd.to_datetime(d1['Corrected_DT'])
+    d1.set_index('Corrected_DT',inplace=True)
+    d1 =d1.resample('10S').interpolate()
+
+    d = pd.concat([d,d1])
+
+    #Third day
+    d1 = data['Vent'].loc[(data['Vent'].index >= '2019-08-19 08:38:10')&(data['Vent'].index < '2019-08-19 20:00:00')]
+    d = pd.concat([d,d1])
+
+    #Another Night
+    cdt = ['2019-08-19 20:00:00','2019-08-20 08:20:40']
+    r = np.zeros(len(cdt))
+    v = np.zeros(len(cdt))
+    t1 = np.zeros(len(cdt))
+    t2 = np.zeros(len(cdt))
+    day = np.zeros(len(cdt))
+    d1 = pd.DataFrame({'Corrected_DT':cdt,'Rotations':r,'Velocity':v,'Temp_1':t1,'Temp_2':t2,'DOW':day})
+    d1['Corrected_DT'] = pd.to_datetime(d1['Corrected_DT'])
+    d1.set_index('Corrected_DT',inplace=True)
+    d1 =d1.resample('10S').interpolate()
+
+    d = pd.concat([d,d1])
+
+    #Final Day
+    d1 = data['Vent'].loc[(data['Vent'].index>='2019-08-20 08:20:50')&(data['Vent'].index<'2019-08-21 20:20:00')].interpolate()
+
+    d = pd.concat([d,d1])
+
+    #Extra part of final day with average values
+    cdt = ['2019-08-21 13:00:00','2019-08-21 18:15:00']
+    r = 102.134473
+    v = 10.272954
+    t1 = 49.162694
+    t2 = 31.979362
+    day = np.zeros(len(cdt))
+    d1 = pd.DataFrame({'Corrected_DT':cdt,'Rotations':r,'Velocity':v,'Temp_1':t1,'Temp_2':t2,'DOW':day})
+    d1['Corrected_DT'] = pd.to_datetime(d1['Corrected_DT'])
+    d1.set_index('Corrected_DT',inplace=True)
+    d1 =d1.resample('10S').interpolate()
+
+    d = pd.concat([d,d1])
+
+    data['Vent'] = d
+    data['Vent'] = data['Vent'].loc[~data['Vent'].index.duplicated(keep='first')]
+    
+    return data
+#==============================================================================================================#
+def aug28_sept12_correction(data):
+    import pandas as pd
+    d = data['Vent'].loc[data['Vent'].index < '2019-08-29 20:00:00']
+
+    d1 = night_vel_zeroing('2019-08-29 20:00:00','2019-08-30 07:00:00')
+    d = pd.concat([d,d1])
+
+    d1 = data['Vent'].loc[(data['Vent'].index>'2019-08-30 07:00:00')&(data['Vent'].index<'2019-08-30 20:00:00')]
+    d = pd.concat([d,d1])
+
+    d1 = night_vel_zeroing('2019-08-30 20:00:00','2019-09-02 07:00:00')
+    d = pd.concat([d,d1])
+
+    d1 = data['Vent'].loc[(data['Vent'].index>'2019-09-02 07:00:00')&(data['Vent'].index<'2019-09-04 20:00:00')]
+    d = pd.concat([d,d1])
+
+    d1 = night_vel_zeroing('2019-09-04 20:00:00','2019-09-05 08:37:00')
+    d = pd.concat([d,d1])
+
+    d1 = data['Vent'].loc[(data['Vent'].index>'2019-09-05 08:37:00')&(data['Vent'].index<'2019-09-06 18:18:00')]
+    d = pd.concat([d,d1])
+
+    d1 = night_vel_zeroing('2019-09-06 18:18:00','2019-09-09 07:00:00')
+    d = pd.concat([d,d1])
+
+    d1 = data['Vent'].loc[(data['Vent'].index>'2019-09-09 07:00:00')&(data['Vent'].index<'2019-09-10 18:54:30')].interpolate()
+    d = pd.concat([d,d1])
+
+    d1 = night_vel_zeroing('2019-09-10 18:54:30','2019-09-11 08:44:50')
+    d = pd.concat([d,d1])
+
+    d1 = data['Vent'].loc[(data['Vent'].index>'2019-09-11 08:44:50')].interpolate()
+    d = pd.concat([d,d1])
+
+    data['Vent'] = d
+    
+    return data
+
 
 #==============================================================================================================#
 #SET UP TIME LAGGING FUNTION
@@ -360,3 +500,73 @@ def process_for_ML_test(cols,downsample_secs,lag_secs,tower_id,pn,percent_train)
     X_test = X_test.reshape((X_test.shape[0], n_seconds, n_features))
 
     return X_train,X_test,y_train,y_test,min_max_scalar,orig_X_train_shape,orig_X_test_shape,orig_y_train_shape,orig_y_test_shape
+
+#################################################################################
+def print_log_flush(string,logfile):
+    print(string,flush=True)
+    if logfile is not None:
+        logfile.write(string+'\n')
+        logfile.flush()
+
+        
+##########################################        
+def hampel_filter(data_dict,key_dict):
+    import numba
+    from numba import jit
+    import numpy as np
+    import pandas as pd
+    @jit(nopython=True)
+    def hampel_filter_forloop_numba(input_series, window_size, n_sigmas=3):
+        #Taken from https://towardsdatascience.com/outlier-detection-with-hampel-filter-85ddf523c73d
+
+        n = len(input_series)
+        new_series = input_series.copy()
+        k = 1.4826 # scale factor for Gaussian distribution
+        indices = []
+
+        # possibly use np.nanmedian 
+        for i in range((window_size),(n - window_size)):
+            x0 = np.median(input_series[(i - window_size):(i + window_size)])
+            S0 = k * np.median(np.abs(input_series[(i - window_size):(i + window_size)] - x0))
+            if (np.abs(input_series[i] - x0) > n_sigmas * S0):
+                new_series[i] = x0
+                indices.append(i)
+
+        return new_series, indices
+       
+    
+    for key,var in key_dict.items():
+        if key not in data_dict:
+            continue
+        df = data_dict[key]
+        allcols = df.columns
+        filter_cols = var[0] 
+        window = var[1]
+        sigma = var[2]
+        first_go = True
+        for col in allcols:
+            print(col)
+            if col in filter_cols:
+                filtered,ind = hampel_filter_forloop_numba(np.array(df[col]),window,n_sigmas=sigma)
+                if first_go:
+                    new_df = df[col].reset_index().drop(ind).set_index('Corrected_DT')
+                    first_go = False
+                else:
+                    new_col = df[col].reset_index().drop(ind).set_index('Corrected_DT')
+                    new_df = pd.concat([new_df,new_col],axis=1)
+                print(f"Column {col} filtered via hampel. Removed {len(ind)} rows of data")
+            else:
+                if first_go:
+                    new_df = df[col]
+                    first_go = False
+                else:
+                    new_col = df[col]
+                    new_df = pd.concat([new_df,new_col],axis=1)
+        data_dict[key] = new_df
+    return data_dict
+         
+
+    
+    
+    
+    
