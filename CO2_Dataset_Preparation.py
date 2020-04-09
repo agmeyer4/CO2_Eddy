@@ -63,17 +63,11 @@ class Dataset:
                 continue
         self.data = data
         
-    def _remove_bad_multi_vals(self,temp_min,temp_max,CO2_min,CO2_max):
-        print("Removing invalid temperatures from Multi")
-        self.data['Multi']['Temp'] = self.data['Multi'].apply(lambda row: np.nan if row['Temp']<temp_min else row['Temp'],axis=1)
-        for col in ['CO2_1','CO2_2','CO2_3']:
-            print(f"Removing bad CO2 values from {col}")
-            self.data['Multi'][col] = self.data['Multi'].apply(\
-                                                               lambda row: np.nan if (row[col]>CO2_max)|(row[col]<CO2_min) \
-                                                               else row[col],axis=1)
-        
     def _hard_filter(self,df_key,filter_dict):
-        print(f"Hard Filtering {df_key}") 
+        print(f"Hard Filtering {df_key}")
+        if  not hasattr(self,'filters_applied'):
+            self.filters_applied = {}
+        self.filters_applied['hard_filter'] = [df_key,filter_dict]
         df = self.data[df_key].copy()
         filter_cols = filter_dict.keys()
         allcols = df.columns
@@ -102,6 +96,9 @@ class Dataset:
             mask = np.abs(noise)>thresh
             return mask
         print(f"Median Filtering {df_key}") 
+        if  not hasattr(self,'filters_applied'):
+            self.filters_applied = {}
+        self.filters_applied['median_filter'] = [df_key,filter_dict]
         df = self.data[df_key].copy()
         filter_cols = filter_dict.keys()
         allcols = df.columns
@@ -138,15 +135,19 @@ class Dataset:
                 
     def _preprocess(self):
         self._data_retrieve()
-        self.data = remove_spikes(pd.read_pickle('Spike_ETs.pkl'),self.data) #CO2_Processing
-        self.data = downsample_and_concatenate(self.data) #CO2_Processing
+
         
         if self.position_number == 1:
+            self.data = remove_spikes(pd.read_pickle('Spike_ETs.pkl'),self.data) #CO2_Processing
+            self.data = downsample_and_concatenate(self.data) #CO2_Processing
             self.data = aug15_21_correction(self.data)            
             self.data = combine_vent_data(self.data,1)
             self.data['Vent_Mass'] = moving_mass_flow(self.data['Vent_Mass'])
-            self._remove_bad_multi_vals(20,100,400,650)
+            filter_dict = {'CO2_1':[390,650],'CO2_2':[390,650],'CO2_3':[390,650],'Temp':[20,100]}
+            self._hard_filter('Multi',filter_dict)
         elif self.position_number == 2:
+            self.data = remove_spikes(pd.read_pickle('Spike_ETs.pkl'),self.data) #CO2_Processing
+            self.data = downsample_and_concatenate(self.data) #CO2_Processing
             self.data = aug28_sept12_correction(self.data)
             self.data = combine_vent_data(self.data,1)
             self.data['Vent_Mass'] = moving_mass_flow(self.data['Vent_Mass'])
@@ -156,31 +157,113 @@ class Dataset:
             self._median_filter('Multi',filter_dict)
             filter_dict = {'ANEM_X':[-20,20],'ANEM_Y':[-20,20],'ANEM_Z':[-10,15]}
             self._hard_filter('Picarro',filter_dict)
+        elif self.position_number == 3:
+            self.data = remove_spikes(pd.read_pickle('Spike_ETs.pkl'),self.data) #CO2_Processing
+            self.data = downsample_and_concatenate(self.data) #CO2_Processing
+            self.data = sept12_sept23_correction(self.data)
+            self.data = combine_vent_data(self.data,1)
+            self.data['Vent_Mass'] = moving_mass_flow(self.data['Vent_Mass'])
+            filter_dict = {'Pic_CO2':[380,700],'ANEM_X':[-10,20],'ANEM_Y':[-15,20],'ANEM_Z':[-10,10]}
+            self._hard_filter('Picarro',filter_dict)
+            filter_dict = {'CO2_1':[390,550],'CO2_2':[390,550],'CO2_3':[390,550]}
+            self._hard_filter('Multi',filter_dict)
+            filter_dict = {'Temp':[100,5]}
+            self._median_filter('Multi',filter_dict)
         elif self.position_number == 4:
+            self.data = remove_spikes(pd.read_pickle('Spike_ETs.pkl'),self.data) #CO2_Processing
+            self.data = downsample_and_concatenate(self.data) #CO2_Processing
             self.data = sept24_26_correction(self.data) #CO2_Processing
             self.data = combine_vent_data(self.data,1) #Combine LI_Vent and Vent_Anem_Temp into a single df by sampling rate 
             self.data['Vent_Mass'] = moving_mass_flow(self.data['Vent_Mass']) #Add the moving mass flow rate  
-            self.data['Vent_Mass'] = pd.concat([\
-                                   self.data['Vent_Mass'].loc[(self.data['Vent_Mass'].index>'2019-09-24 08:57:00')&\
-                                                         (self.data['Vent_Mass'].index<'2019-09-26 08:00:00')],\
-                                   self.data['Vent_Mass'].loc[(self.data['Vent_Mass'].index>'2019-09-26 12:00:00')&\
-                                                         (self.data['Vent_Mass'].index<'2019-10-03 13:00:00')].interpolate()])
+            filter_dict = {'Pic_CH4':[0,15],'ANEM_X':[-10,20],'ANEM_Y':[-20,20]}
+            self._hard_filter('Picarro',filter_dict)
+            filter_dict = {'CO2_3':[390,800]}
+            self._hard_filter('Multi',filter_dict)
+        elif self.position_number == 5:
+            self.data = remove_spikes(pd.read_pickle('Spike_ETs.pkl'),self.data) #CO2_Processing
+            self.data = downsample_and_concatenate(self.data) #CO2_Processing
+            self.data = oct16_nov04_correction(self.data)
+            self.data = combine_vent_data(self.data,1) #Combine LI_Vent and Vent_Anem_Temp into a single df by sampling rate 
+            self.data['Vent_Mass'] = moving_mass_flow(self.data['Vent_Mass']) #Add the moving mass flow rate  
+            filter_dict = {'m_dot':[-1,15]}
+            self._hard_filter('Vent_Mass',filter_dict)
+            filter_dict = {'CO2_2':[390,700]}
+            self._hard_filter('Multi',filter_dict)
+            filter_dict = {'Pic_CO2':[380,800],'Pic_CH4':[0,4],'ANEM_Z':[-10,20]}
+            self._hard_filter('Picarro',filter_dict)
+            #Tubes were switched, switch back
+            d1 = self.data['Multi'].loc[self.data['Multi'].index < '2019 10-29 00:00:00'].rename(columns = {'CO2_1':'CO2_3','CO2_3':'CO2_1'})
+            d2 = self.data['Multi'].loc[self.data['Multi'].index > '2019 10-29 00:00:00']
+            self.data['Multi'] = pd.concat([d1,d2])
+            
         elif self.position_number == 6:
-            #Processing for position 6
-            data = combine_vent_data(data,1) #Combine LI_Vent and Vent_Anem_Temp into a single df by sampling rate 
-            data['Vent_Mass'] = moving_mass_flow(data['Vent_Mass']) #Add the moving mass flow rate based on function developed. 
-            for key in data:
-                data[key] = pd.concat([\
-                               data[key].loc[(data[key].index>'2019-11-06 00:00:00')&(data[key].index<'2019-11-25 12:00:00')],\
-                               data[key].loc[(data[key].index>'2019-11-25 17:00:00')&(data[key].index<'2019-11-27 10:28:00')]])
-
+            self.data = remove_spikes(pd.read_pickle('Spike_ETs.pkl'),self.data) #CO2_Processing
+            self.data = downsample_and_concatenate(self.data) #CO2_Processing
+            self.data = nov04_nov27_correction(self.data)
+            self.data = combine_vent_data(self.data,1)
+            self.data['Vent_Mass'] = moving_mass_flow(self.data['Vent_Mass'])
+            filter_dict = {'m_dot':[-1,15]}
+            self._hard_filter('Vent_Mass',filter_dict)
+            filter_dict = {'CO2_1':[390,650],'CO2_2':[390,700],'CO2_3':[390,650],'Temp':[-20,100]}
+            self._hard_filter('Multi',filter_dict)
+            filter_dict = {'Pic_CO2':[380,800]}
+            self._hard_filter('Picarro',filter_dict)
+            self.data['Picarro'] = self.data['Picarro'].loc[(self.data['Picarro'].index < '2019-11-25 12:00:00')|(self.data['Picarro'].index > '2019-11-25 17:00:00')].resample("0.1S").mean()
         elif self.position_number == 10:
             data = combine_vent_data(data,1) #Combine LI_Vent and Vent_Anem_Temp into a single df by sampling rate 
             data['Vent_Mass'] = moving_mass_flow(data['Vent_Mass']) #Add the moving mass flow rate based on function developed. 
             for key in data:
                 data[key] = data[key].loc[(data[key].index>'2019-09-11 10:00:00')&(data[key].index<'2019-09-11 14:00:00')]
 
-                
+class Processed_Set:
+    def __init__(self,tower,position_number,vent_bool):
+        self.position_number = position_number
+        self.vent_bool = vent_bool
+        self.tower = tower
+        if self.tower == 'Multi':
+            if self.position_number == 1:
+                self.date_ranges = {0:['2019-08-15','2019-08-21'],1:['2019-10-22','2019-10-30'],2:['2019-11-06','2019-11-27']}
+            if self.position_number == 2:
+                self.date_ranges = {0:['2019-08-29','2019-09-19']}
+            if self.position_number == 3:
+                self.date_ranges = {0:['2019-09-30','2019-10-03']}
+        if self.tower == 'Picarro':
+            if self.position_number == 1:
+                self.date_ranges = {0:['2019-08-15','2019-08-21']}
+            if self.position_number == 2:
+                self.date_ranges = {0:['2019-08-28','2019-09-12']}
+            if self.position_number == 3:
+                self.date_ranges = {0:['2019-09-12','2019-09-23']}    
+            if self.position_number == 4:
+                self.date_ranges = {0:['2019-09-24','2019-10-03']}  
+            if self.position_number == 5:
+                self.date_ranges = {0:['2019-10-16','2019-11-04']}  
+            if self.position_number == 6:
+                self.date_ranges = {0:['2019-11-05','2019-11-27']}  
+    
+    def _retrieve_data(self,data_path):
+        firstgo = True
+        self.data_path = data_path
+        for i in range(0,len(self.date_ranges)):
+            for date in daterange(self.date_ranges[i][0],self.date_ranges[i][1]):
+                if firstgo:
+                    with open(f'{data_path}/{self.tower}/{date}_PN{self.position_number}.pkl','rb') as handle:
+                        tower_df = pickle.load(handle)
+                    if self.vent_bool:
+                        with open(f'{data_path}/Vent/{date}.pkl','rb') as handle:
+                            vent_df = pickle.load(handle)
+                    firstgo=False
+                else:
+                    with open(f'{data_path}/{self.tower}/{date}_PN{self.position_number}.pkl','rb') as handle:
+                        tower_df = pd.concat([tower_df,pickle.load(handle)])
+                    if self.vent_bool:
+                        with open(f'{data_path}/Vent/{date}.pkl','rb') as handle:
+                            vent_df = pd.concat([vent_df,pickle.load(handle)])
+        if self.vent_bool:
+            self.data = {f'{self.tower}':tower_df,'Vent':vent_df}
+        else:
+            self.data = {f'{self.tower}':tower_df}
+            
 class ML_Data:
     def __init__(self,feature_columns,downsample_sec,periods_to_lag,tower,train_percent):
         self.feature_columns = feature_columns

@@ -189,8 +189,10 @@ def sept24_26_correction(data):
     app.set_index('Corrected_DT',inplace=True)
 
     app = app.resample('10S').mean().interpolate()
+    
+    data['Vent'] = data['Vent'].interpolate()
 
-    data['Vent'] = pd.concat([app,data['Vent']])
+    data['Vent'] = pd.concat([app,data['Vent']]).resample('10S').mean()
     return data
 #==============================================================================================================#
 def night_vel_zeroing(dt1,dt2):
@@ -328,8 +330,69 @@ def aug28_sept12_correction(data):
     data['Vent'] = d
     
     return data
+#==============================================================================================================#
+def sept12_sept23_correction(data):
+    import pandas as pd
+    print("Applying vent correction for PN3")
+    d = data['Vent'].loc[data['Vent'].index < '2019-09-14 00:00:00']
+    d1 = night_vel_zeroing('2019-09-14 00:00:00','2019-09-16 07:00:00')
+    d2 = data['Vent'].loc[(data['Vent'].index > '2019-09-16 07:00:00')&(data['Vent'].index < '2019-09-16 20:00:00')]
+    d3 = data['Vent'].loc[(data['Vent'].index > '2019-09-16 20:00:00')&(data['Vent'].index < '2019-09-17 18:00:00')].interpolate()
+    d4 = data['Vent'].loc[(data['Vent'].index > '2019-09-17 18:00:00')&(data['Vent'].index < '2019-09-17 20:00:00')]
+    d5 = night_vel_zeroing('2019-09-17 20:00:00','2019-09-18 07:00:00')
+    d6 = data['Vent'].loc[(data['Vent'].index > '2019-09-18 07:00:00')&(data['Vent'].index < '2019-09-18 20:00:00')]
+    d7 = night_vel_zeroing('2019-09-18 20:00:00','2019-09-19 07:00:00')
+    d8 = data['Vent'].loc[data['Vent'].index>'2019-09-19 07:00:00']
+
+    data['Vent'] = pd.concat([d,d1,d2,d3,d4,d5,d6,d7,d8])
+    
+    return data
+#==============================================================================================================#
+def oct16_nov04_correction(data):
+    import pandas as pd
+    d1 = data['Vent'].loc[data['Vent'].index < '2019-10-16 20:00:00']
+    d2 = night_vel_zeroing('2019-10-16 20:00:00','2019-10-17 07:00:00')
+    d3 = data['Vent'].loc[(data['Vent'].index > '2019-10-17 07:00:00')&(data['Vent'].index < '2019-10-18 20:00:00')]
+    d4 = night_vel_zeroing('2019-10-18 20:00:00','2019-10-21 07:00:00')
+    d5 = data['Vent'].loc[(data['Vent'].index > '2019-10-21 07:00:00')&(data['Vent'].index < '2019-10-22 20:00:00')]
+    d6 = night_vel_zeroing('2019-10-22 20:00:00','2019-10-23 09:00:00')
+    d7 = data['Vent'].loc[(data['Vent'].index > '2019-10-23 09:00:00')&(data['Vent'].index < '2019-10-24 19:00:00')].interpolate()
+    d8 = data['Vent'].loc[(data['Vent'].index > '2019-10-24 19:00:00')&(data['Vent'].index < '2019-10-24 20:00:00')]
+    d9 = night_vel_zeroing('2019-10-24 20:00:00','2019-10-25 07:00:00')
+    d10 = data['Vent'].loc[(data['Vent'].index > '2019-10-25 07:00:00')&(data['Vent'].index < '2019-10-25 20:00:00')]
+    d11 = night_vel_zeroing('2019-10-25 20:00:00','2019-10-28 07:00:00')
+    d12 = data['Vent'].loc[(data['Vent'].index > '2019-10-28 07:00:00')]
+    
+    data['Vent'] = pd.concat([d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12])
+    return data
+#==============================================================================================================#
+def nov04_nov27_correction(data):
+    import pandas as pd
+    d1 = data['Vent'].loc[data['Vent'].index < '2019-11-06 20:00:00']
+    d2 = night_vel_zeroing('2019-11-06 20:00:00','2019-11-07 07:00:00')
+    d3 = data['Vent'].loc[(data['Vent'].index > '2019-11-07 07:00:00')&(data['Vent'].index < '2019-11-08 20:00:00')]
+    d4 = night_vel_zeroing('2019-11-08 20:00:00','2019-11-11 07:00:00')
+    d5 = data['Vent'].loc[(data['Vent'].index > '2019-11-11 07:00:00')\
+                                &(data['Vent'].index < '2019-11-11 19:15:00')\
+                                &((data['Vent']['Velocity']>0)|(data['Vent']['Velocity'].isnull()))]
+    d6 = data['Vent'].loc[(data['Vent'].index > '2019-11-11 19:15:00')&(data['Vent'].index < '2019-11-11 20:00:00')]
+    d7 = night_vel_zeroing('2019-11-11 20:00:00','2019-11-12 07:00:00')
+    d8 = data['Vent'].loc[(data['Vent'].index > '2019-11-12 07:00:00')\
+                                &(data['Vent'].index < '2019-11-12 12:00:00')\
+                                &((data['Vent']['Velocity']>8)|(data['Vent']['Velocity'].isnull()))]
+    d9 = data['Vent'].loc[(data['Vent'].index > '2019-11-12 12:00:00')&(data['Vent'].index < '2019-11-14 12:00:00')]
+    d10 = data['Vent'].loc[(data['Vent'].index > '2019-11-14 12:00:00')\
+                                &(data['Vent'].index < '2019-11-14 19:45:00')\
+                                &((data['Vent']['Velocity']>8)|(data['Vent']['Velocity'].isnull()))]
+    d11 = data['Vent'].loc[(data['Vent'].index > '2019-11-14 19:45:00')&(data['Vent'].index < '2019-11-15 20:00:00')]
+    d12 = night_vel_zeroing('2019-11-15 20:00:00','2019-11-18 07:00:00')
+    d13 = data['Vent'].loc[(data['Vent'].index > '2019-11-18 07:00:00')&(data['Vent'].index < '2019-11-22 20:00:00')]
+    d14 = night_vel_zeroing('2019-11-22 20:00:00','2019-11-25 07:00:00')
+    d15 = data['Vent'].loc[data['Vent'].index > '2019-11-25 07:00:00']
 
 
+    data['Vent'] = pd.concat([d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12,d13,d14,d15])
+    return data
 #==============================================================================================================#
 #SET UP TIME LAGGING FUNTION
 #Courtesy of Jason Brownlee
