@@ -37,9 +37,9 @@ class Dataset:
         elif self.position_number == 6:
             self.start_date = '2019-11-06'
             self.end_date = '2019-11-27'
-        elif self.position_number == 10:
-            self.start_date = '2019-09-11'
-            self.end_date = '2019-09-11'
+        elif self.position_number == 'all':
+            self.start_date = '2019-08-15'
+            self.end_date = '2019-11-27'
 
     def _data_retrieve(self):
         first_go = True #flag for first time through
@@ -216,10 +216,16 @@ class Dataset:
                 data[key] = data[key].loc[(data[key].index>'2019-09-11 10:00:00')&(data[key].index<'2019-09-11 14:00:00')]
 
 class Processed_Set:
-    def __init__(self,tower,position_number,vent_bool):
+    def __init__(self,tower,position_number,excess_rolls,**kwargs):
         self.position_number = position_number
-        self.vent_bool = vent_bool
+        #self.vent_bool = vent_bool
         self.tower = tower
+        self.excess_rolls = excess_rolls
+        for key,value in kwargs.items():
+            if key == 'vent_bool':
+                self.vent_bool = value
+            elif key == 'wbb_bool':
+                self.wbb_bool = value
         if self.tower == 'Multi':
             if self.position_number == 1:
                 self.date_ranges = {0:['2019-08-15','2019-08-21'],1:['2019-10-22','2019-10-30'],2:['2019-11-06','2019-11-27']}
@@ -227,7 +233,7 @@ class Processed_Set:
                 self.date_ranges = {0:['2019-08-29','2019-09-19']}
             if self.position_number == 3:
                 self.date_ranges = {0:['2019-09-30','2019-10-03']}
-        if self.tower == 'Picarro':
+        elif self.tower == 'Picarro':
             if self.position_number == 1:
                 self.date_ranges = {0:['2019-08-15','2019-08-21']}
             if self.position_number == 2:
@@ -240,6 +246,8 @@ class Processed_Set:
                 self.date_ranges = {0:['2019-10-16','2019-11-04']}  
             if self.position_number == 6:
                 self.date_ranges = {0:['2019-11-05','2019-11-27']}  
+        else: 
+            raise NameError('Tower must be "Picarro" or "Multi')
     
     def _retrieve_data(self,data_path):
         firstgo = True
@@ -252,6 +260,9 @@ class Processed_Set:
                     if self.vent_bool:
                         with open(f'{data_path}/Vent/{date}.pkl','rb') as handle:
                             vent_df = pickle.load(handle)
+                    if self.wbb_bool:
+                        with open(f'{data_path}/WBB_Weather/{date}.pkl','rb') as handle:
+                            wbb_df = pickle.load(handle)
                     firstgo=False
                 else:
                     with open(f'{data_path}/{self.tower}/{date}_PN{self.position_number}.pkl','rb') as handle:
@@ -259,14 +270,103 @@ class Processed_Set:
                     if self.vent_bool:
                         with open(f'{data_path}/Vent/{date}.pkl','rb') as handle:
                             vent_df = pd.concat([vent_df,pickle.load(handle)])
+                    if self.wbb_bool:
+                        with open(f'{data_path}/WBB_Weather/{date}.pkl','rb') as handle:
+                            wbb_df = pd.concat([wbb_df,pickle.load(handle)])
+        if self.tower == 'Multi':
+            tower_df = multi_direction_correction(tower_df)
+            tower_df.rename(columns={'Wind_Velocity':'ws','Wind_Direction':'wd'},inplace=True)
+
+        self.data = {f'{self.tower}':tower_df}
         if self.vent_bool:
-            self.data = {f'{self.tower}':tower_df,'Vent':vent_df}
+            self.data['Vent_Mass'] = vent_df
+        if self.wbb_bool:
+            self.data['WBB_Weather'] = wbb_df
+        
+    def _apply_excess(self):
+        print(f"Applying excess using minimum on windows: {self.excess_rolls}")
+        for roll in self.excess_rolls:
+            if self.tower=='Picarro':
+                pollutant_cols = ['Pic_CO2','Pic_CH4']
+                self.save_cols = ['Pic_CO2','Pic_CH4','Pic_Loc','ANEM_X','ANEM_Y','ANEM_Z']
+            else:
+                pollutant_cols = ['CO2_1','CO2_2','CO2_3']
+                self.save_cols = ['CO2_1', 'CO2_2', 'CO2_3', 'Temp', 'Rotations', 'ws', 'wd', 'Multi_Loc']
+            for col in pollutant_cols:
+                self.data[self.tower][f'min_r{roll}_{col}'] = self.data[self.tower][col].rolling(roll,center=True,min_periods=1).min()
+
+        
+        for roll in self.excess_rolls:
+            for col in pollutant_cols:
+                self.data[self.tower][f'excess_r{roll}_{col}'] = self.data[self.tower][col]-self.data[self.tower][f'min_r{roll}_{col}']
+                self.save_cols.append(f'excess_r{roll}_{col}')
+                #self.feature_columns.append(f'excess_r{roll}_{col}')
+
+        self.data[self.tower] = self.data[self.tower][self.save_cols]
+    
+    def _combine_vent_tower(self,downsample):
+        print("combining vent and tower data into a dataframe")
+        if downsample == 0:
+            self.df = self.data[self.tower]
         else:
-            self.data = {f'{self.tower}':tower_df}
+            tower_proc = dwn_sample(self.data[self.tower],downsample)
+            vent_proc = dwn_sample(self.data['Vent_Mass'],downsample)
+            self.df = pd.concat([tower_proc,vent_proc['m_dot']],axis=1)
+        
+    def _add_rolling_wind(self,rolls,delete_anem_bool):
+        print(f"rolling wind with {rolls} size windows") 
+        if self.tower != 'Picarro':
+            raise NameError('Tower must be Picarro for this operation')
+        
+        for col in ['ANEM_X','ANEM_Y']:
+            for roll in rolls:
+                self.df[f'roll_{roll}_{col}'] = self.df[col].rolling(roll,center=True,min_periods=1).mean()
+
+        w = wind_add(self.df,'ANEM_X','ANEM_Y').copy()[['ws','wd']]
+        self.df[f'ws'] = w['ws']
+        self.df[f'wd'] = w['wd']
+
+        for roll in rolls:
+            print(f'Wind Add with {roll} rolled timesteps')
+            w = wind_add(self.df,f'roll_{roll}_ANEM_X',f'roll_{roll}_ANEM_Y').copy()[['ws','wd']]
+            self.df[f'roll_{roll}_ws'] = w['ws']
+            self.df[f'roll_{roll}_wd'] = w['wd']
+        
+        if delete_anem_bool:
+            if self.tower == 'Picarro':
+                self.df = self.df.filter(regex='ws|wd|Pic')
+            elif self.tower =='Multi':
+                self.df = self.df.filter(regex='ws|wd|CO2')
+            
+            
+    def _column_shifter(self,shift_list,**kwargs):
+        print(f"shifting wind columns by {shift_list}")
+        if self.tower == 'Picarro':
+            cols = self.df.columns.drop(self.df.filter(regex='Pic').columns)
+        elif self.tower=='Multi':
+            cols = self.df.columns.drop(self.df.filter(regex='CO2').columns)  
+        for key,value in kwargs.items():
+            if key == 'delete':
+                del_col = value
+            else:
+                del_col = False
+        
+        for shift_num in shift_list:
+            for col in cols:
+                self.df[f'{col}(t-{shift_num})'] = self.df[col].shift(periods=shift_num)    
+        if del_col:
+            self.df.drop(cols,axis=1,inplace=True)
+
+    def _vent_on_only(self):
+        self.df = self.df.loc[self.df['m_dot']>0]
+
+
+        
+#######========================================================================================================####################
             
 class ML_Data:
-    def __init__(self,feature_columns,downsample_sec,periods_to_lag,tower,train_percent):
-        self.feature_columns = feature_columns
+    def __init__(self,downsample_sec,periods_to_lag,tower,train_percent):
+        #self.feature_columns = feature_columns
         self.downsample_sec = downsample_sec
         self.periods_to_lag = periods_to_lag
         self.tower = tower
@@ -288,10 +388,16 @@ class ML_Data:
         #Concatenate and add wind speed & direction if picarro data
         if self.tower == 'Picarro':
             df = wind_add(df,'ANEM_X','ANEM_Y') #CO2_functions
+        
+        self.feature_columns = data.save_cols.copy()
+        self.feature_columns.append('ws')
+        self.feature_columns.append('wd')
+        
         #Drop columns
-        if 'm_dot' not in self.feature_columns:
-            self.feature_columns.append('m_dot')
-        df = df[self.feature_columns]
+        self.feature_and_target = self.feature_columns.copy()
+        if 'm_dot' not in self.feature_and_target:
+            self.feature_and_target.append('m_dot')
+        df = df[self.feature_and_target]
 
         #Make mass flux the last column
         loc = df.columns.get_loc('m_dot')
