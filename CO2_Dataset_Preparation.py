@@ -216,11 +216,11 @@ class Dataset:
                 data[key] = data[key].loc[(data[key].index>'2019-09-11 10:00:00')&(data[key].index<'2019-09-11 14:00:00')]
 
 class Processed_Set:
-    def __init__(self,tower,position_number,excess_rolls,**kwargs):
+    def __init__(self,tower,position_number,excess_rolls_sec,**kwargs):
         self.position_number = position_number
         #self.vent_bool = vent_bool
         self.tower = tower
-        self.excess_rolls = excess_rolls
+        self.excess_rolls_sec = excess_rolls_sec
         for key,value in kwargs.items():
             if key == 'vent_bool':
                 self.vent_bool = value
@@ -245,9 +245,11 @@ class Processed_Set:
             if self.position_number == 5:
                 self.date_ranges = {0:['2019-10-16','2019-11-04']}  
             if self.position_number == 6:
-                self.date_ranges = {0:['2019-11-05','2019-11-27']}  
+                self.date_ranges = {0:['2019-11-05','2019-11-27']}
+        elif self.tower=='WBB':
+            self.date_ranges = {0:['2019-08-15','2019-11-27']}
         else: 
-            raise NameError('Tower must be "Picarro" or "Multi')
+            raise NameError('Tower must be "Picarro", "Multi", or "WBB"')
     
     def _retrieve_data(self,data_path):
         firstgo = True
@@ -255,54 +257,85 @@ class Processed_Set:
         for i in range(0,len(self.date_ranges)):
             for date in daterange(self.date_ranges[i][0],self.date_ranges[i][1]):
                 if firstgo:
-                    with open(f'{data_path}/{self.tower}/{date}_PN{self.position_number}.pkl','rb') as handle:
-                        tower_df = pickle.load(handle)
+                    if self.tower == 'WBB':
+                        with open(f'{data_path}/WBB_Weather/{date}.pkl','rb') as handle:
+                            weather = pickle.load(handle)
+                        with open(f'{data_path}/WBB_CO2/{date}.pkl','rb') as handle:
+                            pollutant = pickle.load(handle)
+                    else:
+                        with open(f'{data_path}/{self.tower}/{date}_PN{self.position_number}.pkl','rb') as handle:
+                            tower_df = pickle.load(handle)
                     if self.vent_bool:
                         with open(f'{data_path}/Vent/{date}.pkl','rb') as handle:
                             vent_df = pickle.load(handle)
-                    if self.wbb_bool:
-                        with open(f'{data_path}/WBB_Weather/{date}.pkl','rb') as handle:
-                            wbb_df = pickle.load(handle)
+    #                     if self.wbb_bool:
+    #                         with open(f'{data_path}/WBB_Weather/{date}.pkl','rb') as handle:
+    #                             wbb_df = pickle.load(handle)
                     firstgo=False
                 else:
-                    with open(f'{data_path}/{self.tower}/{date}_PN{self.position_number}.pkl','rb') as handle:
-                        tower_df = pd.concat([tower_df,pickle.load(handle)])
+                    if self.tower=='WBB':
+                        with open(f'{data_path}/WBB_Weather/{date}.pkl','rb') as handle:
+                            weather = pd.concat([weather,pickle.load(handle)])
+                        with open(f'{data_path}/WBB_CO2/{date}.pkl','rb') as handle:
+                            pollutant = pd.concat([pollutant,pickle.load(handle)])
+                    else:
+                        with open(f'{data_path}/{self.tower}/{date}_PN{self.position_number}.pkl','rb') as handle:
+                            tower_df = pd.concat([tower_df,pickle.load(handle)])
                     if self.vent_bool:
                         with open(f'{data_path}/Vent/{date}.pkl','rb') as handle:
                             vent_df = pd.concat([vent_df,pickle.load(handle)])
-                    if self.wbb_bool:
-                        with open(f'{data_path}/WBB_Weather/{date}.pkl','rb') as handle:
-                            wbb_df = pd.concat([wbb_df,pickle.load(handle)])
+#                         if self.wbb_bool:
+#                             with open(f'{data_path}/WBB_Weather/{date}.pkl','rb') as handle:
+#                                 wbb_df = pd.concat([wbb_df,pickle.load(handle)])
+        
         if self.tower == 'Multi':
             tower_df = multi_direction_correction(tower_df)
             tower_df.rename(columns={'Wind_Velocity':'ws','Wind_Direction':'wd'},inplace=True)
 
+        if self.tower == 'WBB':
+            tower_df = pd.concat([weather,pollutant.resample('1T').mean()]).drop('EPOCH_TIME',axis=1)   
+         
         self.data = {f'{self.tower}':tower_df}
         if self.vent_bool:
             self.data['Vent_Mass'] = vent_df
-        if self.wbb_bool:
-            self.data['WBB_Weather'] = wbb_df
+#         if self.wbb_bool:
+#             self.data['WBB_Weather'] = wbb_df
         
-    def _apply_excess(self):
-        print(f"Applying excess using minimum on windows: {self.excess_rolls}")
-        for roll in self.excess_rolls:
+    def _apply_excess(self,**kwargs):
+        print(f"Applying excess using minimum on windows: {self.excess_rolls_sec} seconds")
+        for key,value in kwargs.items():
+            if key == 'delete_min_cols':
+                delete_min_cols = value
+
+        
+        
+        if self.tower == 'Picarro':
+            excess_rolls = [x*10 for x in self.excess_rolls_sec]
+        else:
+            excess_rolls = self.excess_rolls_sec
+            
+        for i in range(0,len(excess_rolls)):
             if self.tower=='Picarro':
                 pollutant_cols = ['Pic_CO2','Pic_CH4']
                 self.save_cols = ['Pic_CO2','Pic_CH4','Pic_Loc','ANEM_X','ANEM_Y','ANEM_Z']
-            else:
+            elif self.tower == 'Multi':
                 pollutant_cols = ['CO2_1','CO2_2','CO2_3']
-                self.save_cols = ['CO2_1', 'CO2_2', 'CO2_3', 'Temp', 'Rotations', 'ws', 'wd', 'Multi_Loc']
+                self.save_cols = ['CO2_1', 'CO2_2', 'CO2_3', 'Temp', 'Rotations', 'ws', 'wd', ]
+            elif self.tower == 'WBB':
+                pollutant_cols = ['WBB_CO2','WBB_CH4']
+                self.save_cols = ['WBB_CO2','WBB_CH4', 'Temp', 'ws', 'wd']
             for col in pollutant_cols:
-                self.data[self.tower][f'min_r{roll}_{col}'] = self.data[self.tower][col].rolling(roll,center=True,min_periods=1).min()
+                self.data[self.tower][f'min_r{self.excess_rolls_sec[i]}_{col}'] = self.data[self.tower][col].rolling(excess_rolls[i],center=True,min_periods=1).min().rolling(excess_rolls[i],center=True,min_periods=1).mean()
 
         
-        for roll in self.excess_rolls:
+        for i in range(0,len(excess_rolls)):
             for col in pollutant_cols:
-                self.data[self.tower][f'excess_r{roll}_{col}'] = self.data[self.tower][col]-self.data[self.tower][f'min_r{roll}_{col}']
-                self.save_cols.append(f'excess_r{roll}_{col}')
+                self.data[self.tower][f'excess_r{self.excess_rolls_sec[i]}_{col}'] = self.data[self.tower][col]-self.data[self.tower][f'min_r{self.excess_rolls_sec[i]}_{col}']
+                self.save_cols.append(f'excess_r{self.excess_rolls_sec[i]}_{col}')
                 #self.feature_columns.append(f'excess_r{roll}_{col}')
 
-        self.data[self.tower] = self.data[self.tower][self.save_cols]
+        if delete_min_cols:
+            self.data[self.tower] = self.data[self.tower][self.save_cols]
     
     def _combine_vent_tower(self,downsample):
         print("combining vent and tower data into a dataframe")
@@ -313,7 +346,12 @@ class Processed_Set:
             vent_proc = dwn_sample(self.data['Vent_Mass'],downsample)
             self.df = pd.concat([tower_proc,vent_proc['m_dot']],axis=1)
         
-    def _add_rolling_wind(self,rolls,delete_anem_bool):
+    def _add_rolling_wind(self,rolls,**kwargs):
+        for key,value in kwargs.items():
+            if key == 'delete_anem_bool':
+                delete_anem_bool = value
+
+        
         print(f"rolling wind with {rolls} size windows") 
         if self.tower != 'Picarro':
             raise NameError('Tower must be Picarro for this operation')
@@ -342,9 +380,11 @@ class Processed_Set:
     def _column_shifter(self,shift_list,**kwargs):
         print(f"shifting wind columns by {shift_list}")
         if self.tower == 'Picarro':
-            cols = self.df.columns.drop(self.df.filter(regex='Pic').columns)
+            cols = self.df.columns.drop(self.df.filter(regex='Pic|dot').columns)
         elif self.tower=='Multi':
-            cols = self.df.columns.drop(self.df.filter(regex='CO2').columns)  
+            cols = self.df.columns.drop(self.df.filter(regex='CO2|dot').columns)  
+        elif self.tower=='WBB':
+            cols = self.df.columns.drop(self.df.filter(regex='WBB|dot').columns) 
         for key,value in kwargs.items():
             if key == 'delete':
                 del_col = value

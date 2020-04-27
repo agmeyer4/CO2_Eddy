@@ -100,7 +100,10 @@ def get_multiplexer_data(tablename,date1,date2,split_or_concat,i):
                     order by EPOCH_TIME asc;".format(tablename,date1,date2)) #SQL query
         data = mycursor.fetchall() #fetch the data
         Multiplexer = pd.DataFrame(list(data)) #convert imported data into a dataframe
-        Multiplexer.columns = ['Local_DT','EPOCH_TIME','CO2_1','CO2_2','CO2_3','Rotations','Wind_Velocity','Wind_Direction','Temp','Multi_loc'] #name columns
+        if date1<'2019-08-14':
+            Multiplexer.columns =['Local_DT','EPOCH_TIME','CO2_1','CO2_2','CO2_3','Rotations','Wind_Velocity','Wind_Direction','Temp'] #name columns
+        else:
+            Multiplexer.columns = ['Local_DT','EPOCH_TIME','CO2_1','CO2_2','CO2_3','Rotations','Wind_Velocity','Wind_Direction','Temp','Multi_loc'] #name columns
     else:
         raise ValueError('Input "split" or "concat" as the last argument')
         
@@ -1133,14 +1136,14 @@ def wind_add(df_in,x_lab,y_lab):
     ######################################################################
     import numpy as np
     df = df_in.copy()
-    print(f"Adding Wind Direction for {x_lab},{y_lab} as 'wd'")
+    print(f"Adding Wind Direction for {x_lab},{y_lab} as 'py_wd'")
     wd_vec = np.vectorize(wind_dir) #vectorize the wind direction function
     if 'Pic_Loc' in df.columns:
         df['wd'] = wd_vec(df[x_lab],df[y_lab],df['Pic_Loc']) #add the 2d wind direction
     else:
         df['wd'] = wd_vec(df[x_lab],df[y_lab],1)
-    print(f"Adding Wind Speed for {x_lab},{y_lab} as 'ws'")
-    df['ws'] = np.sqrt(df[x_lab]**2+df[x_lab]**2) #add the 2d wind speed
+    print(f"Adding Wind Speed for {x_lab},{y_lab} as 'py_ws'")
+    df['ws'] = np.sqrt(df[x_lab]**2+df[y_lab]**2) #add the 2d wind speed
     return df
 #==============================================================================================================#
 def multi_direction_correction(df):

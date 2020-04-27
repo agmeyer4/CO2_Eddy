@@ -209,3 +209,10 @@ for date in daterange('2019-08-15','2019-11-27'):
     file_name=f'../CO2_Data_Processed/WBB_Weather/{date}'
     with open('{}.pkl'.format(file_name),'wb') as file:
         pickle.dump(w,file)
+        
+d.data['WBB_CO2'].set_index('Corrected_DT',inplace=True)
+for date in daterange('2019-08-15','2019-11-27'):
+    w = d.data['WBB_CO2'].loc[(d.data['WBB_CO2'].index>=f'{date} 00:00:00.00')&(d.data['WBB_CO2'].index<f'{date} 23:59:59.99')]
+    file_name=f'../CO2_Data_Processed/WBB_CO2/{date}'
+    with open('{}.pkl'.format(file_name),'wb') as file:
+        pickle.dump(w,file)
