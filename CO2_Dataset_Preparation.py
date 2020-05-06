@@ -135,7 +135,6 @@ class Dataset:
                 
     def _preprocess(self):
         self._data_retrieve()
-
         
         if self.position_number == 1:
             self.data = remove_spikes(pd.read_pickle('Spike_ETs.pkl'),self.data) #CO2_Processing
@@ -214,7 +213,17 @@ class Dataset:
             data['Vent_Mass'] = moving_mass_flow(data['Vent_Mass']) #Add the moving mass flow rate based on function developed. 
             for key in data:
                 data[key] = data[key].loc[(data[key].index>'2019-09-11 10:00:00')&(data[key].index<'2019-09-11 14:00:00')]
+                print('correcting CO2')
+       
+        print("correcting CO2 data based on calibration")
+        self.data['Picarro']['Pic_CO2'] = self.data['Picarro']['Pic_CO2']*1.0317 #linear calibration constant 
+        print("Pic_CO2 = Meas_val*1.0317") 
+        print("CO2_i = Meas_val+5 (moisture correction)") 
 
+        for i in range(1,4):
+            self.data['Multi'][f'CO2_{i}'] = self.data['Multi'][f'CO2_{i}']+5
+                
+                
 class Processed_Set:
     def __init__(self,tower,position_number,excess_rolls_sec,**kwargs):
         self.position_number = position_number
