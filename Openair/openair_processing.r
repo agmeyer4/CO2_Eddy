@@ -4,6 +4,8 @@ library(ggplot2)
 library(dplyr)
 library(readr)
 library(data.table)
+library(gridExtra)
+
 setwd('~/CO2_Eddy/Openair/')
 path = '../../CO2_Data_Processed/R_Dataframes/'
 
@@ -73,13 +75,16 @@ vent_on_only <- function(df_orig){
   return(df)
 }
 
-plot_prep1 <- function(df_list,pn,tower,wind_roll,low_ws,high_ws){
+plot_prep1 <- function(df_list,pn,tower,wind_roll,low_ws,high_ws,m_dot_low,m_dot_high,omit){
+
   ws_label = paste0('ws_roll_',wind_roll)
   wd_label = paste0('wd_roll_',wind_roll)
 
   df_sub = add_wind_to_df(df_list[[tower]][[pn]],wind_roll,tower)
-
-
+  if (omit==TRUE){
+    df_sub = vent_on_only(df_sub)
+  }
+  df_sub = subset(df_sub,(df_sub$m_dot>=m_dot_low)&(df_sub$m_dot<=m_dot_high))
   df_sub = subset(df_sub,df_sub[[ws_label]]>low_ws & df_sub[[ws_label]]<high_ws)
   return(df_sub)
 }
@@ -149,24 +154,79 @@ for (i in 1:3){
 dfs[["Multi"]] = multi_dfs
 rm(multi_dfs)
 
+all_data = data.frame()
 
 
 
 
-tower = "Multi"
-pn = 2
+#for (i in (1:6)){
+ 
+tower = "Picarro"
+pn = 1
+wind_roll = 0
+ws_label = paste0('ws_roll_',wind_roll)
+wd_label = paste0('wd_roll_',wind_roll)
+df_sub1 = add_wind_to_df(dfs[[tower]][[pn]],wind_roll,tower)
+
+time_lag = 1
+df_sub = lag_wind_vars(df_sub1,time_lag)
+ws_label = paste0('ws_roll_',wind_roll,'_lag_',time_lag)
+wd_label = paste0('wd_roll_',wind_roll,'_lag_',time_lag)
+
+
+m_dot_low =1
+m_dot_high =18
+df_sub = subset(df_sub,(df_sub$m_dot>m_dot_low)&(df_sub$m_dot<=m_dot_high))
+
 high_ws = 15
 low_ws = 2
-wind_roll = 0
-plot_df = plot_prep1(dfs,pn,tower,wind_roll,low_ws,high_ws)
+df_sub = subset(df_sub,df_sub[[ws_label]]>low_ws & df_sub[[ws_label]]<high_ws)
 
-
-excess_roll = 10
-constituent = 'CO2_1'
+excess_roll = 600
+constituent = 'Pic_CO2'
 stat = 'excess'
 time_lag =0
-percentile = 90
-plot_out = cust_polarPlot(plot_df,pn,tower,constituent,stat,high_ws,low_ws,wind_roll,excess_roll,time_lag,percentile)
+percentile = 95
+
+if (stat=='none'){
+  pollutant = constituent
+}else {
+  pollutant = paste0(stat,'_r',excess_roll,'_',constituent)
+}
+
+names(df_sub)[names(df_sub)==wd_label] <-'wd'
+names(df_sub)[names(df_sub)==ws_label] <-'ws'
+
+perc = .3
+rowint = as.integer(nrow(df_sub)*perc)
+rand_df = df_sub[sample(nrow(df_sub),rowint),]
+
+#plot_out = polarFreq(df_sub,pollutant = pollutant,statistic = 'max')
+plot_out = polarPlot(rand_df,pollutant = pollutant,statistic = 'percentile',percentile = percentile)
+
+x = plot_out[["data"]][["z"]]
+max_prob = max(x[!is.na(x)])
+maxid = which(x==max_prob)
+u = plot_out[["data"]][["u"]][[maxid]]
+v = plot_out[["data"]][["v"]][[maxid]]
+ws = sqrt(u^2+v^2)
+wd = add_360(atan2(v,u)/pi*180)
+print(max_prob,ws,wd)
+
+
+
+
+
+plot_out = cust_polarPlot(df_sub,pn,tower,constituent,stat,high_ws,low_ws,wind_roll,excess_roll,time_lag,percentile)
+
+
+data = extract_plot_data(plot_out)
+
+percentileRose(df_sub,pollutant = pollutant )
+
+g1 = ggplot()+ geom_point(data = df_sub,aes(x=date,y=excess_r10_Pic_CH4),size=0.5)
+g2 = ggplot()+ geom_point(data = df_sub,aes(x=date,y=m_dot),size=0.5)
+grid.arrange(g1,g2,nrow=2)
 
 
 
@@ -176,6 +236,85 @@ plot_out = cust_polarPlot(plot_df,pn,tower,constituent,stat,high_ws,low_ws,wind_
 
 
 
-ggplot()+
-  geom_line(data = df,aes(x=date,y=ws_roll_10),color="red")+
-  geom_line(data = df,aes(x=date,y=ws_roll_1000),color="blue")
+
+
+
+
+
+
+
+
+excess_to_total_comp <- function(poll_stat,plot_stat,pn){
+  all_info = data.frame()
+  
+  tower = "Picarro"
+  pn = pn
+  wind_roll = 0
+  ws_label = paste0('ws_roll_',wind_roll)
+  wd_label = paste0('wd_roll_',wind_roll)
+  df_sub1 = add_wind_to_df(dfs[[tower]][[pn]],wind_roll,tower)
+  m_dot_low =-2
+  m_dot_high =0
+  
+  
+  while (m_dot_high<=12){
+  
+
+    df_sub = subset(df_sub1,(df_sub1$m_dot>m_dot_low)&(df_sub1$m_dot<=m_dot_high))
+    
+    high_ws = 20
+    low_ws = 0
+    df_sub = subset(df_sub,df_sub[[ws_label]]>low_ws & df_sub[[ws_label]]<high_ws)
+    
+    excess_roll = 600
+    constituent = 'Pic_CO2'
+    time_lag =0
+    percentile = 95
+    
+    if (poll_stat=='none'){
+      pollutant = constituent
+    }else {
+      pollutant = paste0(poll_stat,'_r',excess_roll,'_',constituent)
+    }
+    
+    names(df_sub)[names(df_sub)==wd_label] <-'wd'
+    names(df_sub)[names(df_sub)==ws_label] <-'ws'
+    
+    plot_out = polarPlot(df_sub,ws = 'ws',wd='wd',pollutant = pollutant,statistic = plot_stat,percentile = percentile)
+    
+    
+    x = plot_out[["data"]][["z"]]
+    max_perc = max(x[!is.na(x)])
+    maxid = which(x==max_perc)
+    u = plot_out[["data"]][["u"]][[maxid]]
+    v = plot_out[["data"]][["v"]][[maxid]]
+    ws = sqrt(u^2+v^2)
+    wd = add_360(atan2(v,u)/pi*180)
+    
+
+    
+    info = list()
+    
+    if (plot_stat == 'cpf'){
+      st = plot_out[["plot"]][["sub"]]
+      cpf = parse_number(substr(st,nchar(st)-5,nchar(st)))
+      info$cpf=cpf
+    }
+    
+    
+    
+    info$max_perc = max_perc
+    info$ws = ws
+    info$wd = wd
+    info$min_mdot = m_dot_low
+    info$max_mdot = m_dot_high
+    
+    all_info = rbind(all_info,info)
+    m_dot_high = m_dot_high+2
+    m_dot_low = m_dot_low+2
+    
+  }
+  
+  return(all_info)
+  
+}

@@ -12,3 +12,5 @@ dependencies:
   - Ipython
   - tensorflow
   - seaborn
+  - keras
+  - scikitlearn

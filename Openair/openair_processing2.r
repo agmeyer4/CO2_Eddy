@@ -8,7 +8,6 @@ library(gridExtra)
 library(grid)
 library(latticeExtra)
 
-
 setwd('~/CO2_Eddy/Openair/')
 path = '../../CO2_Data_Processed/R_Dataframes/'
 
@@ -100,9 +99,15 @@ plot_prep1 <- function(df_with_wind,basic_info){
   basic_info$wd_label = paste0('wd_roll_',basic_info$wind_roll,'_lag_',basic_info$time_lag)#Add wind
   
   #Random dropout *row precent
-  rowint = as.integer(nrow(df_sub)*basic_info$row_perc)
-  df_sub = df_sub[sample(nrow(df_sub),rowint),]
-
+  if (basic_info$dropout_type=='random'){
+    rowint = as.integer(nrow(df_sub)*basic_info$row_perc)
+    df_sub = df_sub[sample(nrow(df_sub),rowint),]
+  }else if (basic_info$dropout_type=='sequential'){
+    nth_row = 1/basic_info$row_perc
+    df_sub =df_sub[seq(1,nrow(df_sub),nth_row),]
+  }else{stop('select random or sequential for dropout_time')}
+  
+  
   #Reorder by date - rand dropout randomizes
   df_sub = df_sub[order(df_sub$Corrected_DT),]
   
@@ -180,7 +185,7 @@ known_wd = list(195.4,137.7,122.2,184.3,14.9,224.1)
 
 basic_info = list()
 basic_info$tower = "Picarro"
-basic_info$pn = 1
+basic_info$pn = 6
 basic_info$wind_roll = 0
 basic_info$ws_label = paste0('ws_roll_',basic_info$wind_roll)
 basic_info$wd_label = paste0('wd_roll_',basic_info$wind_roll)
@@ -188,65 +193,109 @@ basic_info$known_wd = known_wd[[basic_info$pn]]
 
 df_with_wind = add_wind_to_df(dfs[[basic_info$tower]][[basic_info$pn]],basic_info$wind_roll,basic_info$tower)
 
+###############################
 #Plot before random dropout and filters
 g1=ggplot()+ geom_point(data = df_with_wind,aes(x=date,y=Pic_CO2),size=0.5)
 g2=ggplot()+ geom_point(data = df_with_wind,aes_string(x='date',y=basic_info$wd_label),size=0.5)
 g3 =ggplot()+ geom_point(data = df_with_wind,aes(x=date,y=m_dot),size=0.5)
 grid.arrange(g1,g2,g3,nrow=3)
+###############################
 
-basic_info$m_dot_low =0
+basic_info$m_dot_low =1
 basic_info$m_dot_high =20
 basic_info$high_ws = 20
-basic_info$low_ws = 0
+basic_info$low_ws = 2
 basic_info$excess_roll = 600
-basic_info$constituent = 'Pic_CO2'
+basic_info$constituent = 'Pic_CH4'
 basic_info$stat = 'excess'
 basic_info$time_lag =0
 basic_info$percentile = 95
-basic_info$row_perc = .1
+basic_info$row_perc = 1
+basic_info$dropout_type = 'sequential'
 
 plot_def = plot_prep1(df_with_wind,basic_info)
 basic_info = plot_def[[2]]
 basic_info$rows = nrow(plot_def[[1]])
 
-
+######################################
 #Plot after random dropout and filters
 g1=ggplot()+ geom_point(data = plot_def[[1]],aes_string(x='date',y=basic_info$pollutant),size=0.5)
 g2=ggplot()+ geom_point(data = plot_def[[1]],aes(x=date,y=wd),size=0.5)
 g3 =ggplot()+ geom_point(data = plot_def[[1]],aes(x=date,y=m_dot),size=0.5)
 grid.arrange(g1,g2,g3,nrow=3)
+######################################
 
 
-
-title = paste0(basic_info$tower," Position ",basic_info$pn, " with ",basic_info$m_dot_low," < Vent_M > ",basic_info$m_dot_high, "g/s CO2")
+title = 'Bivariate Polar Plot'#paste0(basic_info$tower," Position ",basic_info$pn, " with ",basic_info$m_dot_low," < Vent_M > ",basic_info$m_dot_high, "g/s CO2")
 footer = paste0("ppm ",basic_info$pollutant)
-header = '95th Percentile \nConcentration'
+header = '95th % Conc'
 plot_out = polarPlot(plot_def[[1]],pollutant = basic_info$pollutant,
                      statistic = 'percentile',percentile = basic_info$percentile,cols = 'viridis'
-                     ,main =title,par.settings=list(fontsize=list(text=20)),
-                     key = list(header=header,footer=footer),angle.scale = 45
+                     ,main =title,key.header = ' ',key.footer = ' ',par.settings=list(fontsize=list(text=20)),
+                     #angle.scale = 45
                      )
+trellis.focus("legend", side="right", clipp.off=TRUE, highlight=FALSE)
+grid.text(header, 0.2, 1, hjust=.1, vjust=1,gp = gpar(fontsize = 18))
+grid.text(footer, 0.2, 0, hjust=0.1, vjust=-.5,gp = gpar(fontsize = 18))
+trellis.unfocus()
+
+
 
 source_dir = known_dir_line(basic_info$tower,basic_info$pn)
 trellis.last.object() + layer(lsegments(0, 0, source_dir$x_line, source_dir$y_line, lty = 5,
                                         type = 'l',col='red',lwd = 2))
 
+
+
+
+windRose(plot_def[[1]],main = 'EC Tower 1 Wind Rose',key.position = 'right',par.settings=list(fontsize=list(text=20)))
+polarFreq(plot_def[[1]],pollutant = basic_info$pollutant,main = 'EC Tower 6 Wind Rose',key.position = 'right',par.settings=list(fontsize=list(text=20)))
+
 get_info(plot_out,basic_info)
 
+title = 'Bivariate Polar Plot'#paste0(basic_info$tower," Position ",basic_info$pn, " with ",basic_info$m_dot_low," < Vent_M > ",basic_info$m_dot_high, "g/s CO2")
+footer = paste0("ppm ",basic_info$pollutant)
+header = '95th % Conc'
+plot_out = polarPlot(plot_def[[1]],pollutant = basic_info$pollutant,
+                     statistic = 'percentile',percentile = basic_info$percentile,cols = 'viridis'
+                     ,main =title,key.header = ' ',key.footer = ' ',par.settings=list(fontsize=list(text=20)),
+                     #angle.scale = 45
+)
+trellis.focus("legend", side="right", clipp.off=TRUE, highlight=FALSE)
+grid.text(header, 0.2, 1, hjust=.1, vjust=1,gp = gpar(fontsize = 18))
+grid.text(footer, 0.2, 0, hjust=0.1, vjust=-.5,gp = gpar(fontsize = 18))
+trellis.unfocus()
 
 
 
 
 
+dropout_relationship  = function(df_with_wind,basic_info,percent_list){
+  res = data.frame(stringsAsFactors = FALSE)
+  for (row_perc in percent_list){
+    print(row_perc)
+    basic_info$row_perc = row_perc
+    print(basic_info$row_perc)
+    plot_def = plot_prep1(df_with_wind,basic_info)
+    basic_info = plot_def[[2]]
+    basic_info$rows = nrow(plot_def[[1]])
+    plot_out = polarPlot(plot_def[[1]],pollutant = basic_info$pollutant,
+                         statistic = 'percentile',percentile = basic_info$percentile,cols = 'viridis'
+                         ,main =title,par.settings=list(fontsize=list(text=20)),
+                         key = list(header=header,footer=footer),angle.scale = 45
+    )
+    info = get_info(plot_out,basic_info)
+    res1 =list()
+    res1$perc = row_perc
+    res1$rows = info$basic_info$rows
+    res1$wd_max_pred = info$wd_max_perc
+    res1$max_perc = info$max_of_percentile
+    res1$wd_diff = info$wd_diff
+    res = rbind(res,res1,stringsAsFactors = FALSE)
+  }
 
-
-
-
-
-
-plot_out = polarFreq(plot_def[[1]],pollutant = 'Pic_CO2',statistic = 'mean',
-                     main =title,key.footer =footer,min.bin = 2,key = list(fit='all'))
-percentileRose(plot_def[[1]],pollutant = 'Pic_CO2')
+  return(res)
+}
 
 
 
@@ -255,15 +304,10 @@ pic_size = list()
 for (i in list(1,4,6)){
   pic_size[[i]] = size_relationship('Picarro',i,'Pic_CO2')
 }
-
-
-
 multi_size = list()
 for (i in (1:3)){
   multi_size[[i]] = size_relationship('Multi',i,'CO2_3')
 }
-
-
 size_relationship <- function(tower, pn, constituent){
 
   basic_info = list()
@@ -326,8 +370,6 @@ size_relationship <- function(tower, pn, constituent){
   return(res)
 
 }
-
-
 
 detectability <- function(){
   
@@ -410,6 +452,8 @@ detectability <- function(){
 
 
 
+df$lat = 40.765172
+df$lon = -111.8455556
 
     
 

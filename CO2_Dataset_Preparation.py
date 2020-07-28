@@ -215,13 +215,16 @@ class Dataset:
                 data[key] = data[key].loc[(data[key].index>'2019-09-11 10:00:00')&(data[key].index<'2019-09-11 14:00:00')]
                 print('correcting CO2')
        
-        print("correcting CO2 data based on calibration")
-        self.data['Picarro']['Pic_CO2'] = self.data['Picarro']['Pic_CO2']*1.0317 #linear calibration constant 
-        print("Pic_CO2 = Meas_val*1.0317") 
-        print("CO2_i = Meas_val+5 (moisture correction)") 
+        if self.position_number == 'all':
+            print('not applying corrections because "all" selected')
+        else:
+            print("correcting CO2 data based on calibration")
+            self.data['Picarro']['Pic_CO2'] = self.data['Picarro']['Pic_CO2']*1.0317 #linear calibration constant 
+            print("Pic_CO2 = Meas_val*1.0317") 
+            print("CO2_i = Meas_val+5 (moisture correction)") 
 
-        for i in range(1,4):
-            self.data['Multi'][f'CO2_{i}'] = self.data['Multi'][f'CO2_{i}']+5
+            for i in range(1,4):
+                self.data['Multi'][f'CO2_{i}'] = self.data['Multi'][f'CO2_{i}']+5
                 
                 
 class Processed_Set:

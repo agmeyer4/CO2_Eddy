@@ -1,1 +1,10 @@
 # CO2_Eddy
+This repository contains code specifically designed for the processing of CO2, CH4, and wind data from the experiment carried out on the University of Utah union roof in the fall of 2019. All data can currently (July 2020) be accessed via an SQL server. The code pipeline for processing the raw SQL data is included in this document. 
+
+Imperative in all of the code is ensuring that the CO2_Eddy environment is activated. The environment yml file is included in the repository. 
+
+A note to any future users. I wrote this code as a master's student with almost zero Python or R experience - virtually all was learned on-the-fly. As such you will find (as have I in writing this readme) that much of the code is sloppily written, inefficient, slow, and of a general "duct tape and rubber band" variety. My apologies for this. 
+
+1. Run 'SQL_download.py'. Edit the last line of the file to include the dates required and the folder to which you would like to save the data. If all data from the experiment is desired, edit the last line to 'download_and_save_daily('2019-08-15','2019-11-27','YOUR_DESIRED_PATH'). This will download and save data from the SQL server as pickle files with one file for each day. The only processing done in this routine is the addition of a "Corrected_DT" column. Required for this routine to run correctly is the file "Spike_ETs.pkl" which contains the time corrections necessary. Note that this process takes a long time - it could certainly be optimized. However, once data has been downloaded it can be saved and worked on locally such that redownloading is unecessary. 
+
+2. Run 'intermediate_process_store.py'. Edit the "old_folder" and "new_folder" variables within to reflect where your data was stored in step 1, and where you would like the processed data to be stored. 

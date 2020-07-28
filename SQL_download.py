@@ -4,22 +4,12 @@ Created on Thu Jan 30 12:56:31 2020
 
 @author: agmey
 """
-#=========================================================================================================#
-def get_date_range():
-    #Ask the user for a date range and return the results
-    print("helloworld")
-    date1=input("Enter Start Date YYYY-mm-DD: ")
-    date2=input("Enter End Date YYYY-mm-DD: ") 
-    return date1,date2
 
 #=========================================================================================================#
     
 def sql_connect():
     ######################################################################
-    # Function to get exclusively "Spike Necessary" LI_8100 Data         # 
-    # from SQL. Input the SQL Tablename, and date range between which    #
-    # data will be fetched. For one day's worth of data, enter the same  #
-    # Date.                                                              #
+    # Function to connect to SQL and return the connector as "mycursor"  #
     ######################################################################
     import pymysql.cursors
     
@@ -276,7 +266,12 @@ def get_sql_data(LI_vent_sql_tablename,Multiplexer_sql_tablename,\
         else: 
             raise KeyError('Input "split" or "concat" as the last argument')
     except ValueError:
-        dict_of_dfs['Multiplexer'] = pd.DataFrame() #make empty dataframe
+        if split_or_concat == 'concat':
+            dict_of_dfs['Multiplexer'] = pd.DataFrame() #make empty dataframe
+        elif split_or_concat == 'split':
+            for i in range(1,4):
+                dict_of_dfs['Multiplexer_CO2_{}'.format(i)] = pd.DataFrame() #make empty dataframes
+            dict_of_dfs['Multiplexer_Weather'] = pd.DataFrame()
         pass
     
     #Import Vent_Anem_Temp data
@@ -412,7 +407,7 @@ def drift_correct(dict_of_dfs):
         lags = get_lag_groups(spikes,key)
         data[key] = df_correction_lag_slope(lags,data[key])
     
-    if 'Multiplexer_CO2_3' in data.keys():
+    if not data['Multiplexer_CO2_3'].empty:
         data['Multiplexer_Weather'] = data['Multiplexer_CO2_3'][['EPOCH_TIME','Local_DT','Rotations','Wind_Velocity','Wind_Direction','Corrected_ET']]
         data['Multiplexer_Weather']['Corrected_ET'] = data['Multiplexer_Weather'].apply(lambda row: row['Corrected_ET']-2,axis=1)
         data['Multiplexer_Weather']['Corrected_DT'] = data['Multiplexer_Weather']['Corrected_ET'].apply(lambda row: datetime.fromtimestamp(row))
@@ -423,15 +418,19 @@ def drift_correct(dict_of_dfs):
 
 
 #=========================================================================================================#
-def download_and_save_daily(start_date,end_date):
+def download_and_save_daily(start_date,end_date,folder_name):
     ######################################################################
-    # Function to download and save as pickle all necessary data for a user input #
-    # date range.                                                        #
-    # Returns a dataframe with all variables concatenated, cleaned, and  #
-    # drift corrected.                                                   #
+    # Function to download and save as pickle all necessary data for a user input date range.                                         
+    # Saves pickle dataframes for each day in range with all variables concatenated, cleaned, and  
+    # drift corrected.     
+    #
+    # Inputs: start_date, end_date: dates as string 'YYYY-mm-dd'
+    #         folder_name: folder to deposit data into
     ######################################################################
     from datetime import timedelta, datetime
     import pickle
+    import os
+    import sys
     
     def daterange(start_date, end_date):
         start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
@@ -439,6 +438,9 @@ def download_and_save_daily(start_date,end_date):
         for n in range(int ((end_date - start_date).days)+1):
             yield start_date + timedelta(n)
 
+    if not os.path.isdir(folder_name):
+        sys.exit('Error: deposit folder does not exist. Create and retry')
+        
 
     for single_date in daterange(start_date, end_date):
         data = get_sql_data("Aug2019_LI_8100_Vent",\
@@ -448,9 +450,9 @@ def download_and_save_daily(start_date,end_date):
         data = drift_correct(data) #correct drifts
         for key in data:
             data[key].reset_index(drop=True,inplace=True) #reset indecies (get added for some reason)
-            
-        print("Dumping data from {} to Data/{}.pickle".format(single_date,single_date))
-        with open('Data/{}.pickle'.format(single_date), 'wb') as handle:
+        
+        print("Dumping data to {}/{}.pickle".format(folder_name,single_date))
+        with open('{}/{}.pickle'.format(folder_name,single_date), 'wb') as handle:
             pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
             
     return
@@ -458,4 +460,4 @@ def download_and_save_daily(start_date,end_date):
 #=========================================================================================================#
 
 
-download_and_save_daily('2019-10-15','2019-10-16')
+download_and_save_daily('2019-11-21','2019-11-27','Data_Test')
