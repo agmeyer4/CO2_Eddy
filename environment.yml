@@ -13,4 +13,4 @@ dependencies:
   - tensorflow
   - seaborn
   - keras
-  - scikitlearn
+  - scikit-learn
