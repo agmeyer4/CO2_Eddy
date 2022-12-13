@@ -16,8 +16,10 @@ import pandas as pd
 import sys
 import os
 
-old_folder = 'Data_Test'
-new_folder = 'Processed_Test'
+old_folder = '../CO2_Data_Final'
+new_folder = '../CO2_Data_Processed'
+
+print(os.listdir())
 
 if not os.path.isdir(old_folder):
     sys.exit('Error: Data folder does not exist. Retry with valid folder containing daily data')

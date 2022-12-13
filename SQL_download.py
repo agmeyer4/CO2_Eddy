@@ -305,7 +305,7 @@ def get_sql_data(LI_vent_sql_tablename,Multiplexer_sql_tablename,\
     print('Retrieving WBB Weather data')
     try:
         dict_of_dfs['WBB_Weather'] = get_wbb_weather(date1,date2)
-    except ValueError:
+    except:
         dict_of_dfs['WBB_Weather'] = pd.DataFrame() #make empty dataframe
         pass
     
@@ -314,7 +314,7 @@ def get_sql_data(LI_vent_sql_tablename,Multiplexer_sql_tablename,\
     print('Retrieving WBB CO2 data')
     try:
         dict_of_dfs['WBB_CO2'] = get_wbb_co2(date1,date2)
-    except ValueError:
+    except:
         dict_of_dfs['WBB_CO2'] = pd.DataFrame() #make empty dataframe
         pass
     
@@ -460,4 +460,4 @@ def download_and_save_daily(start_date,end_date,folder_name):
 #=========================================================================================================#
 
 
-download_and_save_daily('2019-11-21','2019-11-27','Data_Test')
+download_and_save_daily('2019-11-23','2019-11-24','/Users/agmeyer4/CSR/CO2_Eddy_Data_SQL')

@@ -62,6 +62,7 @@ class Dataset:
                 print_log_flush(os.listdir(self.data_path),self.logfile)
                 continue
         self.data = data
+
         
     def _hard_filter(self,df_key,filter_dict):
         print(f"Hard Filtering {df_key}")
